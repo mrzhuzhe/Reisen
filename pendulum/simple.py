@@ -9,7 +9,7 @@ ti.init(arch=ti.gpu)
 vec3f = ti.types.vector(3, ti.f64)
 gravity = vec3f(0, -0.98, 0)
 dt = 1.0 / 60.0
-numSteps = 100
+numSteps = 10
 sdt = dt / numSteps
 wireRadius = 10
 n = 6
@@ -47,25 +47,25 @@ def update():
         _vel = vel[index]
         for step in range(numSteps):
 
-            vel[index]  +=  sdt * gravity
+            _vel +=  sdt * gravity
             
             # previous position 
-            prepos[index] = pos[index]
-            pos[index] +=  sdt * vel[index] 
+            prepos[index] = _pos
+            _pos +=  sdt * _vel
             # constraint 
-            _dir = pos[index] - centers[index]
+            _dir = _pos - _center
             _norm = _dir.norm()
             
             _normalized = _dir / _norm
 
             _lambda = wireRadius - _norm
-            pos[index] += _normalized * _lambda
+            _pos += _normalized * _lambda
                             
             # project back 
-            vel[index]  = (pos[index] - prepos[index]) / sdt
+            _vel = (_pos - prepos[index]) / sdt
 
-        #pos[index] = _pos
-        #vel[index] = _vel
+        pos[index] = _pos
+        vel[index] = _vel
 
 win_x = 640
 win_y = 640
