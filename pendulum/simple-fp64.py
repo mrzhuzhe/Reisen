@@ -3,21 +3,22 @@ import taichi as ti
 import taichi.math as tm
 from torch import double
 
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.gpu, default_fp=ti.f64) 
 
-
-vec3f = ti.types.vector(3, ti.f32)
+vec3f = ti.types.vector(3, ti.f64)
 gravity = vec3f(0, -9.8, 0)
 dt = 1.0 / 60.0
 # numSteps > 100 will broken
-numSteps = 10
+numSteps = 1000
 sdt = dt / numSteps
 wireRadius = 50
 n = 6
 
-pos = ti.Vector.field(3, dtype=ti.f32, shape=n)
-vel = ti.Vector.field(3, dtype=ti.f32, shape=n)
-centers  = ti.Vector.field(3, dtype=ti.f32, shape=n)
+pos = ti.Vector.field(3, dtype=ti.f64, shape=n)
+pos32 = ti.Vector.field(3, dtype=ti.f32, shape=n)
+vel = ti.Vector.field(3, dtype=ti.f64, shape=n)
+centers  = ti.Vector.field(3, dtype=ti.f64, shape=n)
+centers32  = ti.Vector.field(3, dtype=ti.f32, shape=n)
 
 # init position 
 centers[0] = vec3f(0 , 0 , 0)
@@ -44,6 +45,7 @@ def update():
         _pos = pos[index]
         _center = centers[index]
         _vel = vel[index]
+        centers32[index] = centers[index]
         for step in range(numSteps):
 
             _vel +=  sdt * gravity
@@ -66,6 +68,7 @@ def update():
 
         pos[index] = _pos
         vel[index] = _vel
+        pos32[index] = _pos
 
 win_x = 640
 win_y = 640
@@ -94,9 +97,8 @@ while window.running:
     #if step < 10:
     #    print(step)
     update()
-    
-    scene.particles(pos, color = (0, 1, 1), radius = 10)
-    scene.particles(centers, color = (1, 1, 0), radius = 10)
+    scene.particles(pos32, color = (0, 1, 1), radius = 10)
+    scene.particles(centers32, color = (1, 1, 0), radius = 10)
 
     canvas.scene(scene)
     window.show()
