@@ -6,36 +6,35 @@ from torch import double
 ti.init(arch=ti.gpu)
 
 
-vec3f = ti.types.vector(3, ti.f64)
-gravity = vec3f(0, -0.98, 0)
+vec3f = ti.types.vector(3, ti.f32)
+gravity = vec3f(0, -9.8, 0)
 dt = 1.0 / 60.0
 numSteps = 10
 sdt = dt / numSteps
-wireRadius = 10
+wireRadius = 100
 n = 6
 
 pos = ti.Vector.field(3, dtype=float, shape=n)
-prepos = ti.Vector.field(3, dtype=float, shape=n)
 vel = ti.Vector.field(3, dtype=float, shape=n)
 centers  = ti.Vector.field(3, dtype=float, shape=n)
 
 # init position 
 centers[0] = vec3f(0 , 0 , 0)
-centers[1] = vec3f(15 , 0 , 0)
-pos[0] = vec3f(10, 0, 0)
-pos[1] = vec3f(25, 0, 0)
+centers[1] = vec3f(150 , 0 , 0)
+pos[0] = vec3f(100, 0, 0)
+pos[1] = vec3f(250, 0, 0)
 
 
-centers[2] = vec3f(0 , 0 , 5)
-centers[3] = vec3f(15 , 0 , 5)
-pos[2] = vec3f(10, 0, 5)
-pos[3] = vec3f(25, 0, 5)
+centers[2] = vec3f(0 , 0 , 50)
+centers[3] = vec3f(150 , 0 , 50)
+pos[2] = vec3f(100, 0, 50)
+pos[3] = vec3f(250, 0, 50)
 
 
-centers[4] = vec3f(-15 , 0 , 0)
-centers[5] = vec3f(-15 , 0 , 5)
-pos[4] = vec3f(-5, 0, 0)
-pos[5] = vec3f(-5, 0, 5)
+centers[4] = vec3f(-150 , 0 , 0)
+centers[5] = vec3f(-150 , 0 , 50)
+pos[4] = vec3f(-50, 0, 0)
+pos[5] = vec3f(-50, 0, 50)
 
 
 print(sdt)
@@ -50,7 +49,7 @@ def update():
             _vel +=  sdt * gravity
             
             # previous position 
-            prepos[index] = _pos
+            prepos = _pos
             _pos +=  sdt * _vel
             # constraint 
             _dir = _pos - _center
@@ -62,7 +61,8 @@ def update():
             _pos += _normalized * _lambda
                             
             # project back 
-            _vel = (_pos - prepos[index]) / sdt
+            print(_pos - prepos)
+            _vel = (_pos - prepos) / sdt
 
         pos[index] = _pos
         vel[index] = _vel
@@ -76,7 +76,7 @@ canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(50, 50, 50)
+camera.position(500, 500, 500)
 camera.lookat(0, 0, 0)
 
 
@@ -95,8 +95,8 @@ while window.running:
     #    print(step)
     update()
     
-    scene.particles(pos, color = (0, 1, 1), radius = 1)
-    scene.particles(centers, color = (1, 1, 0), radius = 1)
+    scene.particles(pos, color = (0, 1, 1), radius = 10)
+    scene.particles(centers, color = (1, 1, 0), radius = 10)
 
     canvas.scene(scene)
     window.show()
