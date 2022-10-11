@@ -1,7 +1,5 @@
-from numpy import float64
 import taichi as ti
 import taichi.math as tm
-from torch import double
 
 ti.init(arch=ti.gpu)
 
