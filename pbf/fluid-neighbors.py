@@ -1,3 +1,4 @@
+from math import ceil
 import taichi as ti
 import taichi.math as tm
 
@@ -29,8 +30,12 @@ prepos = ti.Vector.field(3, dtype=ti.f32, shape=n)
 vel = ti.Vector.field(3, dtype=ti.f32, shape=n)
 grads = ti.Vector.field(3, dtype=ti.f32, shape=n)
 
+grid_size = kernelRadius * 1.5
+grid_n = ceil(1 / grid_size)
+"""
 grid_n = 16
 grid_size = 0.5/ grid_n  # Simulation domain of size [0, 1]
+"""
 print(f"Grid size: {grid_n}x{grid_n}")
 
 assert particleRadius * 2 < grid_size
