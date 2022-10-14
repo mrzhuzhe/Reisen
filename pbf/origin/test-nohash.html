@@ -156,8 +156,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 		var nr = 0;
 		for (j = 0; j < numY; j++) {
 			for (i = 0; i < numX; i++) {
-				particles.pos[nr] = fluidOrig.left + i * particleDiameter;
-				particles.pos[nr] += 0.00001 * (j % 2);
+				particles.pos[nr] = fluidOrig.left + 10*i * particleDiameter;
+				particles.pos[nr] += 1000 * (j % 2);
 				particles.pos[nr + 1] = fluidOrig.bottom + j * particleDiameter;
 				particles.vel[nr] = 0.0;
 				particles.vel[nr + 1] = 0.0;
@@ -248,7 +248,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			var gy = Math.floor((py - hash.orig.bottom) * invGridSpacing);
 			
 			var h = (Math.abs((gx * 92837111) ^ (gy * 689287499))) % hash.size;
-						
+			console.log(h)
+				
 			if (hash.marks[h] != hash.currentMark) {				
 				hash.marks[h] = hash.currentMark;
 				hash.first[h] = -1;
@@ -318,8 +319,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			var py = particles.pos[2 * i + 1];
 
 			var first = firstNeighbor[i];
-			//var num = firstNeighbor[i + 1] - first;
-			var num = numParticles;
+			var num = firstNeighbor[i + 1] - first;
+			//var num = numParticles;
 			var rho = 0.0;
 			var sumGrad2 = 0.0;
 
@@ -550,7 +551,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 		}		
 		
 		draw();
-		window.requestAnimationFrame(step);
+		//window.requestAnimationFrame(step);
 	}
 	
 	document.getElementById("viscositySlider").oninput = function() {

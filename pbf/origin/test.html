@@ -135,6 +135,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 		}
 		pushBack(val) {
 			if (this.size >= this.maxSize) {
+				console.log("double")
 				this.maxSize *= 2;
 				var old = this.vals;
 				this.vals = new Int32Array(this.maxSize);
