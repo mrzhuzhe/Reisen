@@ -86,7 +86,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 	var maxParticles = 10000;
 
 	var numX = 10;
-	var numY = 1000;
+	var numY = 10;
 	var numParticles = numX * numY;
 	
 	// boundary
@@ -191,6 +191,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 				particles.pos[2 * i] = minX;
 
 							
+			/*
 			for (j = 0; j < boundaries.length; j++) {
 				b = boundaries[j];
 				if (px < b.left || px > b.right || py < b.bottom || py > b.top)
@@ -211,7 +212,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 					particles.pos[2 * i] += dx;
 				else
 					particles.pos[2 * i + 1] += dy;
-			}		
+			}	
+			*/	
 		}
 	}
 
@@ -319,24 +321,26 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			var py = particles.pos[2 * i + 1];
 
 			var first = firstNeighbor[i];
-			var num = firstNeighbor[i + 1] - first;
+			//var num = firstNeighbor[i + 1] - first;
+			var num = numParticles
 
 			var rho = 0.0;
 			var sumGrad2 = 0.0;
 
 			var gradix = 0.0;
 			var gradiy = 0.0;
-			
+			//console.log("i", i)
 			for (j = 0; j < num; j++) {
 				
-				var id = neighbors.vals[first + j];				
+				var id = j //neighbors.vals[first + j];				
 				var nx = particles.pos[2 * id] - px;				
 				var ny = particles.pos[2 * id + 1] - py;
 				var r = Math.sqrt(nx * nx + ny * ny);
-				
+
+				//if (id == i) console.log("id", i)
 				if (r > 0) {
-					nx /= r;
-					ny /= r;
+					nx = nx/r;
+					ny = ny/r;
 				}
 					
 				if (sand) {
@@ -383,8 +387,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			var lambda = -C / (sumGrad2 + 0.0001);
 
 			for (j = 0; j < num; j++) {
-			
-				var id = neighbors.vals[first + j];
+				
+				var id = j //neighbors.vals[first + j];
+
 				if (id == i) {
 					particles.pos[2 * id] += lambda * gradix;
 					particles.pos[2 * id + 1] += lambda * gradiy;
@@ -454,7 +459,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			solveFluid();
 			
 			// derive velocities
-			
+			/*
 			for (i = 0; i < numParticles; i++) {
 				var vx = particles.pos[2 * i] - particles.prev[2 * i];
 				var vy = particles.pos[2 * i + 1] - particles.prev[2 * i + 1];
@@ -474,6 +479,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 				
 				//applyViscosity(i, dt);
 			}
+			*/
 		}
 	}
 	
@@ -561,7 +567,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			
 	// main
 	
-	setup(10, 1000);
+	setup(10, 10);
 	step();
 	
 

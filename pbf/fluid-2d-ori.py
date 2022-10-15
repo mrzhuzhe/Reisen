@@ -7,14 +7,12 @@ ti.init(arch=ti.gpu)
 dim = 2
 
 vec3f = ti.types.vector(dim, ti.f32)
-if dim == 2:
-    gravity = vec3f(0, -9.8)
-else:
-    gravity = vec3f(0, -9.8, 0)
+gravity = vec3f(0, -9.8)
+
 dt = 0.01
-numSteps = 5
+numSteps = 10
 sdt = dt / numSteps
-n = 9
+n = 90
 
 minX = 0.5
 minZ = 0.5
@@ -28,7 +26,7 @@ restDensity = 1.0 / (particleDiameter * particleDiameter)
 viscosity = 3
 h = kernelRadius
 h2 = h * h
-PI = 3.14
+PI = 3.1415926
 kernelScale = 4.0 / (PI * h2 * h2 * h2 * h2)
 	
 
@@ -39,10 +37,7 @@ grads = ti.Vector.field(dim, dtype=ti.f32, shape=n)
 
 grid_size = kernelRadius * 1.5
 grid_n = ceil(0.5 / grid_size)
-"""
-grid_n = 16
-grid_size = 0.5/ grid_n  # Simulation domain of size [0, 1]
-"""
+
 print(f"Grid size: {grid_n}x{grid_n}")
 
 assert particleRadius * 2 < grid_size
@@ -113,13 +108,7 @@ def solveBoundaries():
             pos[i][0] = 0
         if (pos[i][0] > minX):
             pos[i][0] = minX; 
-        """
-        
-        if (pos[i][2] < 0): 
-            pos[i][2] = 0
-        if (pos[i][2] > minZ):
-            pos[i][2] = minZ; 
-        """
+
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -162,7 +151,8 @@ def solveFluid():
                     
                     _dist = pos[j] - pos[i]
                     _norm = _dist.norm()
-                    if _norm < gridSizeSquare:
+                    #if _norm < gridSizeSquare and j != i:
+                    if j != i:
                         if _norm > 0:
                             _dist = _dist.normalized()
                         if _norm > h:
@@ -194,27 +184,28 @@ def solveFluid():
                                 list_tail[neigh_linear_idx]):
                     j = particle_id[p_idx]
 
-                    _dist = pos[j] - pos[i]
-                    _norm = _dist.norm()
-                    if _norm < gridSizeSquare:
-                        if (j == i) :
-                            pos[j] += _lambda * _gradient
-                        else:
-                            pos[j] += _lambda * grads[j]
+                    #_dist = pos[j] - pos[i]
+                    #_norm = _dist.norm()
+                    #if _norm > gridSizeSquare:
+                    #    continue
+                    if (j == i) :
+                        pos[j] += _lambda * _gradient
+                    else:
+                        pos[j] += _lambda * grads[j]
                     
                     
                     
 
 @ti.kernel
 def init():
-    _w = 1 
+    _w = 10 
     _h = 10
     for i in range(n):
         #_y = i // (_h * _w)
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.05 * vec3f(_cur%_w, _cur//_w)
+        pos[i] = 0.02 * vec3f(_cur%_w + 1, _cur//_w )
 
 
 @ti.kernel

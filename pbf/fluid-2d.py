@@ -158,22 +158,22 @@ def solveFluid():
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):
                     j = particle_id[p_idx]
-                    #if i < j:
-                    _dist = pos[j] - pos[i]
-                    _norm = _dist.norm()
-                    if _norm > 0:
-                        _dist = _dist.normalized()
+                    if i != j:
+                        _dist = pos[j] - pos[i]
+                        _norm = _dist.norm()
+                        if _norm > 0:
+                            _dist = _dist.normalized()
 
-                    if _norm > h:
-                        grads[j] = vec3f(0, 0)
-                    else:
-                        r2 = _norm * _norm
-                        w = h2 - r2
-                        rho += kernelScale * w * w * w
-                        _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
-                        grads[j] = _dist * _grad
-                        _gradient -= _dist * _grad
-                        sumGrad2 += _grad * _grad
+                        if _norm > h:
+                            grads[j] = vec3f(0, 0)
+                        else:
+                            r2 = _norm * _norm
+                            w = h2 - r2
+                            rho += kernelScale * w * w * w
+                            _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
+                            grads[j] = _dist * _grad
+                            _gradient -= _dist * _grad
+                            sumGrad2 += _grad * _grad
 
         
             
