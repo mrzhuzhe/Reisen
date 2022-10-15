@@ -1,4 +1,4 @@
-from math import ceil
+import math
 import taichi as ti
 import taichi.math as tm
 
@@ -6,15 +6,15 @@ ti.init(arch=ti.gpu, default_fp=ti.f64)
 vec3f = ti.types.vector(2, ti.f64)
 gravity = vec3f([0, -9.8])
 dt = 0.01
-numSteps = 1
+numSteps = 10
 sdt = dt / numSteps
-n = 4
-epsilon = 1e-5
+n = 400
+epsilon = 100
 
 minX = 0.5
 minZ = 0.5
-particleRadius = 0.01
-maxVel = 0.1 * particleRadius
+particleRadius = 6.4
+maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
 particleDiameter = 2 * particleRadius
 restDensity = 1.0 / (particleDiameter * particleDiameter)
@@ -23,8 +23,8 @@ restDensity = 1.0 / (particleDiameter * particleDiameter)
 viscosity = 3
 h = kernelRadius
 h2 = h * h
-PI = 3.1415926
-kernelScale = 4.0 / (PI * h2 * h2 * h2 * h2)
+_PI = math.pi
+kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
 	
 
 pos = ti.Vector.field(2, dtype=ti.f64, shape=n)
@@ -106,14 +106,14 @@ def solveFluid():
 
 @ti.kernel
 def init():
-    _w = 1 
+    _w = 10
     _h = 10
     for i in range(n):
         #_y = i // (_h * _w)
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.05 * vec3f([_cur%_w + 2, _cur//_w])
+        pos[i] = 1 * vec3f([_cur%_w + 2, _cur//_w])
 
 
 @ti.kernel
@@ -186,7 +186,7 @@ while gui.running:
     for s in range(numSteps):
         update()
     _pos = pos.to_numpy()
-    gui.circles(_pos, radius=particleRadius* win_x)
+    gui.circles(_pos, radius=particleRadius)
     
     gui.show()
     step +=1 
