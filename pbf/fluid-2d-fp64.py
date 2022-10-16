@@ -8,8 +8,8 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 400
-epsilon = 100
+n = 4000
+epsilon = 1e-5
 
 minX = 64
 screen_to_world_ratio = 10
@@ -22,7 +22,7 @@ restDensity = 1.0 / (particleDiameter * particleDiameter)
 # 2d poly6 (SPH based shallow water simulation
 
 viscosity = 3
-h = kernelRadius
+h = kernelRadius 
 h2 = h * h
 _PI = math.pi
 kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
@@ -33,20 +33,42 @@ prepos = ti.Vector.field(2, dtype=_fp, shape=n)
 vel = ti.Vector.field(2, dtype=_fp, shape=n)
 grads = ti.Vector.field(2, dtype=_fp, shape=n)
 
+# new 
+
+poly6_factor = 315.0 / 64.0 / math.pi
+spiky_grad_factor = -45.0 / math.pi
+@ti.func
+def poly6_value(s, h):
+    result = 0.0
+    if 0 < s and s < h:
+        x = (h * h - s * s) / (h * h * h)
+        result = poly6_factor * x * x * x
+    return result
+
+@ti.func
+def spiky_gradient(r, h):
+    result = ti.Vector([0.0, 0.0])
+    r_len = r.norm()
+    if 0 < r_len and r_len < h:
+        x = (h - r_len) / (h * h * h)
+        g_factor = spiky_grad_factor * x * x
+        result = r * g_factor / r_len
+    return result
+
+
 @ti.func
 def findNeighbors():
     pass
 
-epsilon = 1e-3
 @ti.func
 def solveBoundaries():
     for i in range(n):
         if pos[i][1] <= 0:
-            pos[i][1] = epsilon * ti.random()
+            pos[i][1] = 0
         if (pos[i][0] <= 0): 
-            pos[i][0] = epsilon * ti.random()
+            pos[i][0] = 0
         if (pos[i][0] >= minX):
-            pos[i][0] = minX - epsilon * ti.random(); 
+            pos[i][0] = 0
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -72,13 +94,20 @@ def solveFluid():
         sumGrad2 = 0.0        
         _gradient = vec3f([0.0, 0.0])
         _pos = pos[i]
-        for j in range(n):		
-            
+        for j in range(n):		        
             _dist = pos[j] - _pos
             _norm = _dist.norm(eps=0)
-            
-            if _norm > 0.0001:
+            #"""            
+            _grad = spiky_gradient(-_dist, h)
+            _gradient += _grad
+            sumGrad2 += _grad.dot(_grad)
+            rho += poly6_value(_norm, h)
+            #"""
+            """
+            if _norm > 0.0000:
                 _dist = _dist.normalized(eps=0)            
+            else:
+                _dist = vec3f([0.0, 0.0])  
 
             if _norm > h:
                 grads[j] = vec3f([0.0, 0.0])                    
@@ -90,6 +119,7 @@ def solveFluid():
                 grads[j] = _dist * _grad
                 _gradient -= _dist * _grad
                 sumGrad2 += _grad * _grad
+            """
                    
                 
         sumGrad2 += _gradient.dot(_gradient)
@@ -100,11 +130,16 @@ def solveFluid():
         #if (sumGrad2 < 10): print(sumGrad2)
         _lambda = -_C / (sumGrad2 + epsilon)
         for j in range(n):	
+            """
             if (j == i):
                 pos[j] += _lambda * _gradient
             else:
                 pos[j] += _lambda * grads[j]
-            
+            """
+            pos_ji = pos[j] - pos[i] 
+            pos[j] += _lambda * spiky_gradient(pos_ji, h)
+            #pos[j] += _lambda * grads[j]
+
 
 @ti.kernel
 def init():
