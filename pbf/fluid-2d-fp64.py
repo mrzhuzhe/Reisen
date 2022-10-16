@@ -97,29 +97,26 @@ def solveFluid():
         for j in range(n):		        
             _dist = pos[j] - _pos
             _norm = _dist.norm(eps=0)
-            #"""            
+            """
+            # over there
             _grad = spiky_gradient(-_dist, h)
             _gradient += _grad
             sumGrad2 += _grad.dot(_grad)
             rho += poly6_value(_norm, h)
-            #"""
             """
-            if _norm > 0.0000:
-                _dist = _dist.normalized(eps=0)            
-            else:
-                _dist = vec3f([0.0, 0.0])  
+            #"""          
 
-            if _norm > h:
-                grads[j] = vec3f([0.0, 0.0])                    
+            if _norm <=0 or _norm >= h:
+                grads[j] = vec3f(0, 0)              
             else:
-                r2 = _norm * _norm
-                w = h2 - r2
+                w = (h - _norm) /h/h/h
                 rho += kernelScale * w * w * w
-                _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
-                grads[j] = _dist * _grad
-                _gradient -= _dist * _grad
-                sumGrad2 += _grad * _grad
-            """
+                g_factor = (kernelScale * 3.0 * w * w * (-2.0)) / restDensity;	
+                _grad = g_factor * _dist / _norm
+                grads[j] = _grad
+                _gradient -= _grad
+                sumGrad2 += _grad.dot(_grad)
+
                    
                 
         sumGrad2 += _gradient.dot(_gradient)
@@ -130,15 +127,10 @@ def solveFluid():
         #if (sumGrad2 < 10): print(sumGrad2)
         _lambda = -_C / (sumGrad2 + epsilon)
         for j in range(n):	
-            """
             if (j == i):
                 pos[j] += _lambda * _gradient
             else:
                 pos[j] += _lambda * grads[j]
-            """
-            pos_ji = pos[j] - pos[i] 
-            pos[j] += _lambda * spiky_gradient(pos_ji, h)
-            #pos[j] += _lambda * grads[j]
 
 
 @ti.kernel
