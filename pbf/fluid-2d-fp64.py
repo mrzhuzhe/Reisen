@@ -1,19 +1,20 @@
 import math
 import taichi as ti
 import taichi.math as tm
-
-ti.init(arch=ti.gpu, default_fp=ti.f64) 
-vec3f = ti.types.vector(2, ti.f64)
+_fp  = ti.f32
+ti.init(arch=ti.gpu, default_fp=_fp) 
+vec3f = ti.types.vector(2, _fp)
 gravity = vec3f([0, -9.8])
 dt = 0.01
-numSteps = 10
+numSteps = 5
 sdt = dt / numSteps
 n = 400
 epsilon = 100
 
-minX = 0.5
-minZ = 0.5
-particleRadius = 6.4
+minX = 64
+screen_to_world_ratio = 10
+particleRadius = 0.3
+particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
 particleDiameter = 2 * particleRadius
@@ -27,24 +28,25 @@ _PI = math.pi
 kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
 	
 
-pos = ti.Vector.field(2, dtype=ti.f64, shape=n)
-prepos = ti.Vector.field(2, dtype=ti.f64, shape=n)
-vel = ti.Vector.field(2, dtype=ti.f64, shape=n)
-grads = ti.Vector.field(2, dtype=ti.f64, shape=n)
+pos = ti.Vector.field(2, dtype=_fp, shape=n)
+prepos = ti.Vector.field(2, dtype=_fp, shape=n)
+vel = ti.Vector.field(2, dtype=_fp, shape=n)
+grads = ti.Vector.field(2, dtype=_fp, shape=n)
 
 @ti.func
 def findNeighbors():
     pass
 
+epsilon = 1e-3
 @ti.func
 def solveBoundaries():
     for i in range(n):
-        if pos[i][1] < 0:
-            pos[i][1] = 0
-        if (pos[i][0] < 0): 
-            pos[i][0] = 0
-        if (pos[i][0] > minX):
-            pos[i][0] = minX; 
+        if pos[i][1] <= 0:
+            pos[i][1] = epsilon * ti.random()
+        if (pos[i][0] <= 0): 
+            pos[i][0] = epsilon * ti.random()
+        if (pos[i][0] >= minX):
+            pos[i][0] = minX - epsilon * ti.random(); 
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -75,7 +77,7 @@ def solveFluid():
             _dist = pos[j] - _pos
             _norm = _dist.norm(eps=0)
             
-            if _norm > 0.0000:
+            if _norm > 0.0001:
                 _dist = _dist.normalized(eps=0)            
 
             if _norm > h:
@@ -113,8 +115,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 1 * vec3f([_cur%_w + 2, _cur//_w])
-
+        pos[i] = 0.5 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
 
 @ti.kernel
 def update():
@@ -186,7 +187,6 @@ while gui.running:
     for s in range(numSteps):
         update()
     _pos = pos.to_numpy()
-    gui.circles(_pos, radius=particleRadius)
+    gui.circles(_pos/minX, radius=particleRadius_show)
     
     gui.show()
-    step +=1 

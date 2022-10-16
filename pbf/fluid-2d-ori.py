@@ -12,11 +12,12 @@ gravity = vec3f(0, -9.8)
 dt = 0.01
 numSteps = 10
 sdt = dt / numSteps
-n = 90
+n = 400
 
-minX = 0.5
-minZ = 0.5
-particleRadius = 0.01
+screen_to_world_ratio = 10.0
+minX = 64
+particleRadius = 0.3
+particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
 particleDiameter = 2 * particleRadius
@@ -36,7 +37,7 @@ vel = ti.Vector.field(dim, dtype=ti.f32, shape=n)
 grads = ti.Vector.field(dim, dtype=ti.f32, shape=n)
 
 grid_size = kernelRadius * 1.5
-grid_n = ceil(0.5 / grid_size)
+grid_n = ceil(minX / grid_size)
 
 print(f"Grid size: {grid_n}x{grid_n}")
 
@@ -109,7 +110,6 @@ def solveBoundaries():
         if (pos[i][0] > minX):
             pos[i][0] = minX; 
 
-
 @ti.func
 def applyViscosity(i, sdt):
     #avgVel = vec3f(0, 0, 0)
@@ -127,7 +127,6 @@ def applyViscosity(i, sdt):
 
 @ti.func
 def solveFluid():
-
     avgRho = 0.0
     for i in range(n):
         rho = 0.0
@@ -150,25 +149,20 @@ def solveFluid():
                     j = particle_id[p_idx]
                     
                     _dist = pos[j] - pos[i]
-                    _norm = _dist.norm()
-                    #if _norm < gridSizeSquare and j != i:
-                    if j != i:
-                        if _norm > 0:
-                            _dist = _dist.normalized()
-                        if _norm > h:
-                            grads[j] = vec3f(0, 0)
-                        else:
-                            r2 = _norm * _norm
-                            w = h2 - r2
-                            rho += kernelScale * w * w * w
-                            _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
-                            grads[j] = _dist * _grad
-                            _gradient -= _dist * _grad
-                            sumGrad2 += _grad * _grad
+                    _norm = _dist.norm()               
+                    if _norm > 0:
+                        _dist = _dist.normalized()
+                    if _norm > h:
+                        grads[j] = vec3f(0, 0)
+                    else:
+                        r2 = _norm * _norm
+                        w = h2 - r2
+                        rho += kernelScale * w * w * w
+                        _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
+                        grads[j] = _dist * _grad
+                        _gradient -= _dist * _grad
+                        sumGrad2 += _grad * _grad
 
-        
-            
-        
         sumGrad2 += _gradient.norm_sqr()
         avgRho += rho
         
@@ -183,11 +177,6 @@ def solveFluid():
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):
                     j = particle_id[p_idx]
-
-                    #_dist = pos[j] - pos[i]
-                    #_norm = _dist.norm()
-                    #if _norm > gridSizeSquare:
-                    #    continue
                     if (j == i) :
                         pos[j] += _lambda * _gradient
                     else:
@@ -205,7 +194,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.02 * vec3f(_cur%_w + 1, _cur//_w )
+        pos[i] = 0.5 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
 
 
 @ti.kernel
@@ -253,7 +242,7 @@ camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
 """
-gui = ti.GUI('Taichi DEM', (win_x, win_y))
+gui = ti.GUI('pbf 2d', (win_x, win_y))
 
 step = 0
 init()
@@ -279,7 +268,6 @@ while gui.running:
     for s in range(numSteps):
         update()
     _pos = pos.to_numpy()
-    gui.circles(_pos, radius=particleRadius* win_x)
+    gui.circles(_pos/minX, radius=particleRadius_show)
     
     gui.show()
-    step +=1 
