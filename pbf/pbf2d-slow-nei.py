@@ -71,6 +71,7 @@ def findNeighbors():
         grid_idx = ti.floor(positions[i]/boundary[0] * grid_n, int)
         grain_count[grid_idx] += 1    
 
+    column_sum.fill(0)
     # count every horizon column O(1)
     for i in range(grid_n):
         sum = 0
@@ -186,9 +187,7 @@ def substep():
             for p_idx in range(list_head[neigh_linear_idx],
                             list_tail[neigh_linear_idx]):                    
                 j = particle_id[p_idx]	 
-                pos_j = positions[j]
-                #if p_j < 0:
-                #    break
+                pos_j = positions[j]                
                 pos_ji = pos_i - pos_j
                 grad_j = spiky_gradient(pos_ji, h_)
                 grad_i += grad_j
@@ -219,7 +218,7 @@ def substep():
             neigh_linear_idx = neigh_i * grid_n + neigh_j
             for p_idx in range(list_head[neigh_linear_idx],
                             list_tail[neigh_linear_idx]):                    
-                j = particle_id[p_idx]	 
+                j = particle_id[p_idx]
                 pos_j = positions[j]
                 lambda_j = lambdas[j]
                 pos_ji = pos_i - pos_j

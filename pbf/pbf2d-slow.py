@@ -9,7 +9,7 @@ boundary = (screen_res[0] / screen_to_world_ratio,
             screen_res[1] / screen_to_world_ratio)
 
 dim = 2
-num_particles_x = 200
+num_particles_x = 100
 num_particles = num_particles_x * 20
 time_delta = 1.0 / 20.0
 epsilon = 1e-5
@@ -77,9 +77,9 @@ def confine_position_to_boundary(p):
     for i in ti.static(range(dim)):
         # Use randomness to prevent particles from sticking into each other after clamping
         if p[i] <= bmin:
-            p[i] = bmin #+ epsilon * ti.random()
+            p[i] = bmin + epsilon * ti.random()
         elif bmax[i] <= p[i]:
-            p[i] = bmax[i] #- epsilon * ti.random()
+            p[i] = bmax[i] - epsilon * ti.random()
     return p
 
 

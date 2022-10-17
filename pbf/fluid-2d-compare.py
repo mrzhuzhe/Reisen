@@ -85,6 +85,7 @@ def findNeighbors():
         grid_idx = ti.floor(pos[i]/minX * grid_n, int)
         grain_count[grid_idx] += 1    
 
+    column_sum.fill(0)
     # count every horizon column O(1)
     for i in range(grid_n):
         sum = 0
@@ -180,7 +181,7 @@ def solveFluid():
         sumGrad2 += _gradient.dot(_gradient)
         avgRho += rho
         _C = rho / restDensity - 1.0 
-        _lambda = -_C / (sumGrad2 + 1)
+        _lambda = -_C / (sumGrad2 + 1e-5)
 
         pos_delta_i = ti.Vector([0.0, 0.0])
         for neigh_i , neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
