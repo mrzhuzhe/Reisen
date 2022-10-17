@@ -1,3 +1,4 @@
+import math
 from math import ceil
 import taichi as ti
 import taichi.math as tm
@@ -7,17 +8,13 @@ ti.init(arch=ti.gpu)
 dim = 2
 
 vec3f = ti.types.vector(dim, ti.f32)
-if dim == 2:
-    gravity = vec3f(0, -9.8)
-else:
-    gravity = vec3f(0, -9.8, 0)
+gravity = vec3f(0, -9.8)
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
 n = 900
 
 minX = 0.5
-minZ = 0.5
 particleRadius = 0.01
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
@@ -58,6 +55,26 @@ column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
 prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
 particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
 
+
+poly6_factor = 315.0 / 64.0 / math.pi
+spiky_grad_factor = -45.0 / math.pi
+@ti.func
+def poly6_value(s, h):
+    result = 0.0
+    if 0 < s and s < h:
+        x = (h * h - s * s) / (h * h * h)
+        result = poly6_factor * x * x * x
+    return result
+
+@ti.func
+def spiky_gradient(r, h):
+    result = ti.Vector([0.0, 0.0])
+    r_len = r.norm()
+    if 0 < r_len and r_len < h:
+        x = (h - r_len) / (h * h * h)
+        g_factor = spiky_grad_factor * x * x
+        result = r * g_factor / r_len
+    return result
 
 @ti.func
 def findNeighbors():
@@ -156,29 +173,40 @@ def solveFluid():
             for neigh_j in range(y_begin, y_end):
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
-                                list_tail[neigh_linear_idx]):
+                                list_tail[neigh_linear_idx]):                    
                     j = particle_id[p_idx]
-                    if i != j:
-                        _dist = pos[j] - pos[i]
-                        _norm = _dist.norm()
-                        if _norm > 0:
-                            _dist = _dist.normalized()
+                    
+                    
+                    _dist = pos[j] - pos[i]
+                    #print(_dist)
+                    _norm = _dist.norm()
+                    """
+                    if _norm > 0:
+                        _dist = _dist.normalized()
 
-                        if _norm > h:
-                            grads[j] = vec3f(0, 0)
-                        else:
-                            r2 = _norm * _norm
-                            w = h2 - r2
-                            rho += kernelScale * w * w * w
-                            _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
-                            grads[j] = _dist * _grad
-                            _gradient -= _dist * _grad
-                            sumGrad2 += _grad * _grad
-
+                    if _norm > h:
+                        grads[j] = vec3f(0, 0)
+                    else:
+                        
+                        r2 = _norm * _norm
+                        w = h2 - r2
+                        rho += kernelScale * w * w * w
+                        _grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;	
+                        grads[j] = _dist * _grad
+                        _gradient -= _dist * _grad
+                        sumGrad2 += _grad * _grad
+                    """
+                    # over there
+                    _grad = spiky_gradient(-_dist, h)
+                    _gradient += _grad
+                    sumGrad2 += _grad.dot(_grad)
+                    rho += poly6_value(_norm, h)
+                        
         
             
         
-        sumGrad2 += _gradient.norm_sqr()
+        sumGrad2 += _gradient.dot(_gradient)
+
         avgRho += rho
         
         C = rho / restDensity - 1.0
@@ -192,10 +220,14 @@ def solveFluid():
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):
                     j = particle_id[p_idx]
+                    _dist = pos[j] - pos[i]
+                    """
                     if (j == i) :
                         pos[j] += _lambda * _gradient
                     else:
                         pos[j] += _lambda * grads[j]
+                    """
+                    pos[j] += _lambda * spiky_gradient(-_dist, h)
                     
 
 @ti.kernel
@@ -207,7 +239,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.03 * vec3f(_cur%_w, _cur//_w)
+        pos[i] = 0.03 * vec3f(_cur%_w + 1, _cur//_w)
 
 
 @ti.kernel
@@ -243,39 +275,11 @@ def update():
 win_x = 640
 win_y = 640
 
-"""
-window = ti.ui.Window("simple pendulum", (win_x, win_y))
-canvas = window.get_canvas()
-canvas.set_background_color((0, 0, 0))
-scene = ti.ui.Scene()
 
-camera = ti.ui.make_camera()
-camera.position(1, 1, 1)
-camera.lookat(0, 0, 0)
-scene.ambient_light((0.5, 0.5, 0.5))
-scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
-"""
 gui = ti.GUI('Taichi DEM', (win_x, win_y))
 
 step = 0
 init()
-"""
-while window.running:
-
-    ti.deactivate_all_snodes()  
-    camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
- 
-    scene.set_camera(camera)
-    
-    for s in range(numSteps):
-        update()    
-    
-    scene.particles(pos, color = (0, 1, 1), radius = particleRadius)
-
-    canvas.scene(scene)
-    window.show()
-    """
-
 
 while gui.running:
     for s in range(numSteps):

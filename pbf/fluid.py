@@ -84,7 +84,7 @@ def solveFluid():
                 r2 = _norm * _norm
                 w = h2 - r2
                 rho += kernelScale * w * w * w
-                _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
+                _grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;	
                 grads[j] = _dist * _grad
                 _gradient -= _dist * _grad
                 sumGrad2 += _grad * _grad

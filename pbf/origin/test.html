@@ -368,7 +368,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 					var r2 = r * r;
 					var w = (h2 - r2);
 					rho += kernelScale * w * w * w;
-					var grad = (kernelScale * 3.0 * w * w * (-2.0 * r)) / restDensity;					
+					var grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;					
 					grads[2 * j] = nx * grad;
 					grads[2 * j + 1] = ny * grad;
 					gradix -= nx * grad;

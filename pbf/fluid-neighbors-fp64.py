@@ -2,14 +2,15 @@ from math import ceil
 import taichi as ti
 import taichi.math as tm
 
+_fp = ti.f64
 ti.init(arch=ti.gpu) 
 
-vec3f = ti.types.vector(3, ti.f32)
+vec3f = ti.types.vector(3, _fp)
 gravity = vec3f(0, -9.8, 0)
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 9000 *3
+n = 9000
 
 minX = 0.5
 minZ = 0.5
@@ -25,10 +26,11 @@ h2 = h * h
 PI = 3.14
 kernelScale = 4.0 / (PI * h2 * h2 * h2 * h2);		
 
-pos = ti.Vector.field(3, dtype=ti.f32, shape=n)
-prepos = ti.Vector.field(3, dtype=ti.f32, shape=n)
-vel = ti.Vector.field(3, dtype=ti.f32, shape=n)
-grads = ti.Vector.field(3, dtype=ti.f32, shape=n)
+pos = ti.Vector.field(3, dtype=_fp, shape=n)
+pos32 = ti.Vector.field(3, dtype=ti.f32, shape=n)
+prepos = ti.Vector.field(3, dtype=_fp, shape=n)
+vel = ti.Vector.field(3, dtype=_fp, shape=n)
+grads = ti.Vector.field(3, dtype=_fp, shape=n)
 
 grid_size = kernelRadius * 1.5
 grid_n = ceil(0.5 / grid_size)
@@ -145,22 +147,22 @@ def solveFluid():
             for p_idx in range(list_head[neigh_linear_idx],
                             list_tail[neigh_linear_idx]):
                 j = particle_id[p_idx]
-                if i < j:
-                    _dist = pos[j] - pos[i]
-                    _norm = _dist.norm()
-                    if _norm > 0:
-                        _dist = _dist.normalized()
+                
+                _dist = pos[j] - pos[i]
+                _norm = _dist.norm()
+                if _norm > 0:
+                    _dist = _dist.normalized()
 
-                    if _norm > h:
-                        grads[j] = vec3f(0, 0, 0)
-                    else:
-                        r2 = _norm * _norm
-                        w = h2 - r2
-                        rho += kernelScale * w * w * w
-                        _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
-                        grads[j] = _dist * _grad
-                        _gradient -= _dist * _grad
-                        sumGrad2 += _grad * _grad
+                if _norm > h:
+                    grads[j] = vec3f(0, 0, 0)
+                else:
+                    r2 = _norm * _norm
+                    w = h2 - r2
+                    rho += kernelScale * w * w * w
+                    _grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;	
+                    grads[j] = _dist * _grad
+                    _gradient -= _dist * _grad
+                    sumGrad2 += _grad * _grad
 
         
             
@@ -182,6 +184,8 @@ def solveFluid():
                     pos[j] += _lambda * _gradient
                 else:
                     pos[j] += _lambda * grads[j]
+        
+                pos32[j] = pos[j]
                     
 
 @ti.kernel
@@ -191,7 +195,7 @@ def init():
     for i in range(n):
         _y = i // (_h * _w)
         _cur = i % (_h * _w)
-        pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
+        pos[i] = 0.03 * vec3f(_cur%_w + ti.random(), _y, _cur//_w + ti.random())
 
 
 @ti.kernel
@@ -249,7 +253,7 @@ while window.running:
     for s in range(numSteps):
         update()    
     
-    scene.particles(pos, color = (0, 1, 1), radius = particleRadius)
+    scene.particles(pos32, color = (0, 1, 1), radius = particleRadius)
 
     canvas.scene(scene)
     window.show()

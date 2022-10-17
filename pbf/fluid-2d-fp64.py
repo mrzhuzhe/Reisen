@@ -97,14 +97,14 @@ def solveFluid():
         for j in range(n):		        
             _dist = pos[j] - _pos
             _norm = _dist.norm(eps=0)
-            """
+            #"""
             # over there
             _grad = spiky_gradient(-_dist, h)
             _gradient += _grad
             sumGrad2 += _grad.dot(_grad)
             rho += poly6_value(_norm, h)
-            """
-            #"""          
+            #"""
+            """          
 
             if _norm <=0 or _norm >= h:
                 grads[j] = vec3f(0, 0)              
@@ -116,6 +116,7 @@ def solveFluid():
                 grads[j] = _grad
                 _gradient -= _grad
                 sumGrad2 += _grad.dot(_grad)
+            """
 
                    
                 
@@ -127,10 +128,14 @@ def solveFluid():
         #if (sumGrad2 < 10): print(sumGrad2)
         _lambda = -_C / (sumGrad2 + epsilon)
         for j in range(n):	
+            """
             if (j == i):
                 pos[j] += _lambda * _gradient
             else:
                 pos[j] += _lambda * grads[j]
+            """
+            _dist = pos[j] - _pos
+            pos[j] += _lambda * spiky_gradient(_dist, h)
 
 
 @ti.kernel
@@ -158,57 +163,28 @@ def update():
     solveFluid()
 
     # derive velocities
-    """
+    #"""
     for i in range(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        " ""
+        #"""
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
             pos[i] = prepos[i] + deltaV
-        " ""
+        #"""
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-    """
+    #"""
 win_x = 640
 win_y = 640
 
-"""
-window = ti.ui.Window("simple pendulum", (win_x, win_y))
-canvas = window.get_canvas()
-canvas.set_background_color((0, 0, 0))
-scene = ti.ui.Scene()
-
-camera = ti.ui.make_camera()
-camera.position(1, 1, 1)
-camera.lookat(0, 0, 0)
-scene.ambient_light((0.5, 0.5, 0.5))
-scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
-"""
 gui = ti.GUI('Taichi DEM', (win_x, win_y))
 
 step = 0
 init()
-"""
-while window.running:
-
-    ti.deactivate_all_snodes()  
-    camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
- 
-    scene.set_camera(camera)
-    
-    for s in range(numSteps):
-        update()    
-    
-    scene.particles(pos, color = (0, 1, 1), radius = particleRadius)
-
-    canvas.scene(scene)
-    window.show()
-    """
-
 
 while gui.running:
     for s in range(numSteps):
