@@ -11,9 +11,9 @@ sdt = dt / numSteps
 n = 400
 epsilon = 1e-5
 
-minX = 64
-screen_to_world_ratio = 10
-particleRadius = 0.3
+minX = 1
+screen_to_world_ratio = 640 / minX
+particleRadius = 0.01
 particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
@@ -226,7 +226,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.3 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
+        pos[i] = 0.03 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
 
 @ti.kernel
 def update():

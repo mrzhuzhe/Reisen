@@ -14,7 +14,7 @@ numSteps = 5
 sdt = dt / numSteps
 n = 900
 
-minX = 0.5
+minX = 1
 particleRadius = 0.01
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
@@ -35,7 +35,7 @@ vel = ti.Vector.field(dim, dtype=ti.f32, shape=n)
 grads = ti.Vector.field(dim, dtype=ti.f32, shape=n)
 
 grid_size = kernelRadius * 1.5
-grid_n = ceil(0.5 / grid_size)
+grid_n = ceil(minX / grid_size)
 """
 grid_n = 16
 grid_size = 0.5/ grid_n  # Simulation domain of size [0, 1]
@@ -82,8 +82,8 @@ def findNeighbors():
 
     # count grain O(n)
     for i in range(n):
-        grid_idx = ti.floor(pos[i] * grid_n, int)
-        grain_count[grid_idx] += 1
+        grid_idx = ti.floor(pos[i]/minX * grid_n, int)
+        grain_count[grid_idx] += 1    
 
     # count every horizon column O(1)
     for i in range(grid_n):
@@ -115,7 +115,7 @@ def findNeighbors():
 
     #   O(n)
     for i in range(n):
-        grid_idx = ti.floor(pos[i] * grid_n, int)
+        grid_idx = ti.floor(pos[i]/minX * grid_n, int)      
         linear_idx = grid_idx[0] * grid_n + grid_idx[1]
         grain_location = ti.atomic_add(list_cur[linear_idx], 1)
         particle_id[grain_location] = i
@@ -168,18 +168,22 @@ def solveFluid():
 
         y_begin = max(grid_idx[1] - 1, 0)
         y_end = min(grid_idx[1] + 2, grid_n)
-
+        
         for neigh_i in range(x_begin, x_end):
             for neigh_j in range(y_begin, y_end):
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):                    
                     j = particle_id[p_idx]
-                    
-                    
+               
                     _dist = pos[j] - pos[i]
-                    #print(_dist)
-                    _norm = _dist.norm()
+                    _norm = _dist.norm(eps=0)
+                    #"""
+                    # over there
+                    _grad = spiky_gradient(-_dist, h)
+                    _gradient += _grad
+                    sumGrad2 += _grad.dot(_grad)
+                    rho += poly6_value(_norm, h)
                     """
                     if _norm > 0:
                         _dist = _dist.normalized()
@@ -196,11 +200,6 @@ def solveFluid():
                         _gradient -= _dist * _grad
                         sumGrad2 += _grad * _grad
                     """
-                    # over there
-                    _grad = spiky_gradient(-_dist, h)
-                    _gradient += _grad
-                    sumGrad2 += _grad.dot(_grad)
-                    rho += poly6_value(_norm, h)
                         
         
             
@@ -218,16 +217,17 @@ def solveFluid():
             for neigh_j in range(y_begin, y_end):
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
-                                list_tail[neigh_linear_idx]):
-                    j = particle_id[p_idx]
-                    _dist = pos[j] - pos[i]
+                                list_tail[neigh_linear_idx]):                    
+                    j = particle_id[p_idx]	   
                     """
-                    if (j == i) :
+                    if (j == i):
                         pos[j] += _lambda * _gradient
                     else:
                         pos[j] += _lambda * grads[j]
                     """
-                    pos[j] += _lambda * spiky_gradient(-_dist, h)
+                    _dist = pos[j] - pos[i]
+                    pos[j] += _lambda * spiky_gradient(_dist, h)
+                    
                     
 
 @ti.kernel
@@ -239,7 +239,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.03 * vec3f(_cur%_w + 1, _cur//_w)
+        pos[i] = 0.03 * vec3f(_cur%_w + 5, _cur//_w)
 
 
 @ti.kernel
@@ -258,20 +258,21 @@ def update():
     solveFluid()
 
     # derive velocities
+    """       
     for i in range(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        #"""
+        "" "
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
             pos[i] = prepos[i] + deltaV
-        #"""
+        "" "
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-
+    """
 win_x = 640
 win_y = 640
 
