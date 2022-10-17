@@ -3,13 +3,13 @@ import taichi as ti
 
 ti.init(arch=ti.gpu)
 
-screen_res = (800, 400)
+screen_res = (640, 640)
 screen_to_world_ratio = 10.0
 boundary = (screen_res[0] / screen_to_world_ratio,
             screen_res[1] / screen_to_world_ratio)
 
 dim = 2
-num_particles_x = 200
+num_particles_x = 100
 num_particles = num_particles_x * 20
 time_delta = 1.0 / 20.0
 epsilon = 1e-5
@@ -40,6 +40,71 @@ board_states = ti.Vector.field(2, float, ())
 
 bg_color = 0x112f41
 particle_color = 0x068587
+
+grid_size = 1.5
+grid_n = math.ceil(boundary[0] / grid_size)
+"""
+grid_n = 16
+grid_size = 0.5/ grid_n  # Simulation domain of size [0, 1]
+"""
+print(f"Grid size: {grid_n}x{grid_n}")
+
+assert particle_radius_in_world * 2 < grid_size
+
+list_head = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
+list_cur = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
+list_tail = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
+
+grain_count = ti.field(dtype=ti.i32,
+                       shape=(grid_n, grid_n),
+                       name="grain_count")
+column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
+prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
+particle_id = ti.field(dtype=ti.i32, shape=num_particles, name="particle_id")
+
+@ti.func
+def findNeighbors():
+    grain_count.fill(0)
+
+    # count grain O(n)
+    for i in range(num_particles):
+        grid_idx = ti.floor(positions[i]/boundary[0] * grid_n, int)
+        grain_count[grid_idx] += 1    
+
+    # count every horizon column O(1)
+    for i in range(grid_n):
+        sum = 0
+        for j in range(grid_n):
+            sum += grain_count[i, j]
+        column_sum[i] = sum
+
+    prefix_sum[0, 0] = 0
+
+    #   O(1)
+    ti.loop_config(serialize=True)
+    for i in range(1, grid_n):
+        prefix_sum[i, 0] = prefix_sum[i - 1, 0] + column_sum[i - 1]
+    
+    #   O(1)
+    for i in range(grid_n):
+        for j in range(grid_n):
+            if j == 0:
+                prefix_sum[i, j] += grain_count[i, j]
+            else:
+                prefix_sum[i, j] = prefix_sum[i, j - 1] + grain_count[i, j]
+
+            linear_idx = i * grid_n + j
+
+            list_head[linear_idx] = prefix_sum[i, j] - grain_count[i, j]
+            list_cur[linear_idx] = list_head[linear_idx]
+            list_tail[linear_idx] = prefix_sum[i, j]
+
+    #   O(n)
+    for i in range(num_particles):
+        grid_idx = ti.floor(positions[i]/boundary[0] * grid_n, int)      
+        linear_idx = grid_idx[0] * grid_n + grid_idx[1]
+        grain_location = ti.atomic_add(list_cur[linear_idx], 1)
+        particle_id[grain_location] = i
 
 @ti.func
 def poly6_value(s, h):
@@ -77,9 +142,9 @@ def confine_position_to_boundary(p):
     for i in ti.static(range(dim)):
         # Use randomness to prevent particles from sticking into each other after clamping
         if p[i] <= bmin:
-            p[i] = bmin #+ epsilon * ti.random()
+            p[i] = bmin + epsilon * ti.random()
         elif bmax[i] <= p[i]:
-            p[i] = bmax[i] #- epsilon * ti.random()
+            p[i] = bmax[i] - epsilon * ti.random()
     return p
 
 
@@ -91,7 +156,6 @@ def prologue():
         old_positions[i] = positions[i]
     # apply gravity within boundary
     for i in positions:
-        #g = ti.Vector([0.0, -9.8])
         g = ti.Vector([0.0, -9.8,])
         pos, vel = positions[i], velocities[i]
         vel += g * time_delta
@@ -100,6 +164,7 @@ def prologue():
 
 @ti.kernel
 def substep():
+    findNeighbors()
     # compute lambdas
     # Eq (8) ~ (11)
     for p_i in range(num_particles):
@@ -109,16 +174,27 @@ def substep():
         sum_gradient_sqr = 0.0
         density_constraint = 0.0
 
-        for j in range(num_particles):
-            pos_j = positions[j]
-            #if p_j < 0:
-            #    break
-            pos_ji = pos_i - pos_j
-            grad_j = spiky_gradient(pos_ji, h_)
-            grad_i += grad_j
-            sum_gradient_sqr += grad_j.dot(grad_j)
-            # Eq(2)
-            density_constraint += poly6_value(pos_ji.norm(), h_)
+        grid_idx = ti.floor(pos_i/boundary[0] * grid_n, int)
+        x_begin = max(grid_idx[0] - 1, 0)
+        x_end = min(grid_idx[0] + 2, grid_n)
+
+        y_begin = max(grid_idx[1] - 1, 0)
+        y_end = min(grid_idx[1] + 2, grid_n)
+
+        for neigh_i , neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
+            neigh_linear_idx = neigh_i * grid_n + neigh_j
+            for p_idx in range(list_head[neigh_linear_idx],
+                            list_tail[neigh_linear_idx]):                    
+                j = particle_id[p_idx]	 
+                pos_j = positions[j]
+                #if p_j < 0:
+                #    break
+                pos_ji = pos_i - pos_j
+                grad_j = spiky_gradient(pos_ji, h_)
+                grad_i += grad_j
+                sum_gradient_sqr += grad_j.dot(grad_j)
+                # Eq(2)
+                density_constraint += poly6_value(pos_ji.norm(), h_)
 
         # Eq(1)
         density_constraint = (mass * density_constraint / rho0) - 1.0
@@ -132,14 +208,24 @@ def substep():
         pos_i = positions[p_i]
         lambda_i = lambdas[p_i]
 
+        grid_idx = ti.floor(pos_i/boundary[0] * grid_n, int)
+        x_begin = max(grid_idx[0] - 1, 0)
+        x_end = min(grid_idx[0] + 2, grid_n)
+
+        y_begin = max(grid_idx[1] - 1, 0)
+        y_end = min(grid_idx[1] + 2, grid_n)
         pos_delta_i = ti.Vector([0.0, 0.0])
-        for j in range(num_particles):
-            pos_j = positions[j]
-            lambda_j = lambdas[j]
-            pos_ji = pos_i - pos_j
-            scorr_ij = compute_scorr(pos_ji)
-            pos_delta_i += (lambda_i + lambda_j + scorr_ij) * \
-                spiky_gradient(pos_ji, h_)
+        for neigh_i , neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
+            neigh_linear_idx = neigh_i * grid_n + neigh_j
+            for p_idx in range(list_head[neigh_linear_idx],
+                            list_tail[neigh_linear_idx]):                    
+                j = particle_id[p_idx]	 
+                pos_j = positions[j]
+                lambda_j = lambdas[j]
+                pos_ji = pos_i - pos_j
+                scorr_ij = compute_scorr(pos_ji)
+                pos_delta_i += (lambda_i + lambda_j + scorr_ij) * \
+                    spiky_gradient(pos_ji, h_)
 
         pos_delta_i /= rho0
         position_deltas[p_i] = pos_delta_i

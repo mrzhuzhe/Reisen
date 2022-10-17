@@ -13,7 +13,7 @@ epsilon = 1e-5
 
 minX = 64
 screen_to_world_ratio = 640 / minX
-particleRadius = 0.1
+particleRadius = 0.3
 particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
@@ -154,6 +154,7 @@ def solveFluid():
         sumGrad2 = 0.0        
         _gradient = vec3f([0.0, 0.0])
         _pos = pos[i]
+
         grid_idx = ti.floor(pos[i]/minX * grid_n, int)
         #print(grid_idx)
         x_begin = max(grid_idx[0] - 1, 0)
@@ -166,7 +167,8 @@ def solveFluid():
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):                    
-                    j = particle_id[p_idx]	        
+                    j = particle_id[p_idx]	 
+
                     _dist = pos[j] - _pos
                     _norm = _dist.norm(eps=0)
 
@@ -174,24 +176,22 @@ def solveFluid():
                     _gradient += _grad
                     sumGrad2 += _grad.dot(_grad)
                     rho += poly6_value(_norm, h)
-
-
-                   
-                
+ 
         sumGrad2 += _gradient.dot(_gradient)
         avgRho += rho
-        _C = rho / restDensity - 1.0        
-        if _C < 0:
-            continue
-        #if (sumGrad2 < 10): print(sumGrad2)
-        _lambda = -_C / (sumGrad2 + epsilon)
+        _C = rho / restDensity - 1.0 
+        _lambda = -_C / (sumGrad2 + 1)
+
+        pos_delta_i = ti.Vector([0.0, 0.0])
         for neigh_i , neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):                    
                     j = particle_id[p_idx]
-                    _dist = pos[j] - _pos
-                    pos[j] += _lambda * spiky_gradient(_dist, h)
+                    _dist = pos[j] - pos[i]
+                    pos_delta_i += _lambda * spiky_gradient(-_dist, h)
+        
+        pos[i] += pos_delta_i
 
 
 @ti.kernel
@@ -203,7 +203,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.03 * vec3f(_cur%_w + ti.random(), _cur//_w + ti.random())
+        pos[i] = 0.3 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
 
 @ti.kernel
 def update():
@@ -220,19 +220,20 @@ def update():
     solveFluid()
 
     # derive velocities
-    #"""
     for i in range(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
+        """
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
-            pos[i] = prepos[i] + deltaV
+            pos[i] = prepos[i] + deltaV        
+        """
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-    #"""
+
 win_x = 640
 win_y = 640
 

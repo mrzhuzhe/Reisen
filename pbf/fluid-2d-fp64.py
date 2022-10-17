@@ -163,21 +163,21 @@ def update():
     solveFluid()
 
     # derive velocities
-    #"""
+    """
     for i in range(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        #"""
+        "" "
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
             pos[i] = prepos[i] + deltaV
-        #"""
+        "" "
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-    #"""
+    """
 win_x = 640
 win_y = 640
 
