@@ -13,7 +13,7 @@ num_particles_x = 20
 num_particles = num_particles_x * 20
 time_delta = 1.0 / 20.0
 epsilon = 1e-5
-particle_radius = 3.0
+particle_radius = 3
 particle_radius_in_world = particle_radius / screen_to_world_ratio
 
 

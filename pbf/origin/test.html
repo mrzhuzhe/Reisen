@@ -368,7 +368,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 					var r2 = r * r;
 					var w = (h2 - r2);
 					rho += kernelScale * w * w * w;
-					var grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;					
+					var grad = (kernelScale * 3.0 * w * w * (-2.0 *r )) / restDensity;					
 					grads[2 * j] = nx * grad;
 					grads[2 * j + 1] = ny * grad;
 					gradix -= nx * grad;
@@ -385,7 +385,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 				continue;
 
 			var lambda = -C / (sumGrad2 + 0.0001);
-
+			console.log(lambda)
 			for (j = 0; j < num; j++) {
 				
 				var id = j //neighbors.vals[first + j];
@@ -459,7 +459,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 			solveFluid();
 			
 			// derive velocities
-			/*
+			
 			for (i = 0; i < numParticles; i++) {
 				var vx = particles.pos[2 * i] - particles.prev[2 * i];
 				var vy = particles.pos[2 * i + 1] - particles.prev[2 * i + 1];
@@ -479,7 +479,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 				
 				//applyViscosity(i, dt);
 			}
-			*/
+			
 		}
 	}
 	

@@ -1,21 +1,20 @@
 import math
-from math import ceil
 import taichi as ti
 import taichi.math as tm
-
-ti.init(arch=ti.gpu) 
-
-dim = 2
-
-vec3f = ti.types.vector(dim, ti.f32)
-gravity = vec3f(0, -9.8)
+_fp  = ti.f32
+ti.init(arch=ti.gpu, default_fp=_fp) 
+vec3f = ti.types.vector(2, _fp)
+gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 900
+n = 4000
+epsilon = 1e-5
 
-minX = 1
-particleRadius = 0.01
+minX = 64
+screen_to_world_ratio = 640 / minX
+particleRadius = 0.1
+particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
 particleDiameter = 2 * particleRadius
@@ -23,19 +22,18 @@ restDensity = 1.0 / (particleDiameter * particleDiameter)
 # 2d poly6 (SPH based shallow water simulation
 
 viscosity = 3
-h = kernelRadius
+h = kernelRadius 
 h2 = h * h
-PI = 3.14
-kernelScale = 4.0 / (PI * h2 * h2 * h2 * h2)
+_PI = math.pi
+kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
 	
 
-pos = ti.Vector.field(dim, dtype=ti.f32, shape=n)
-prepos = ti.Vector.field(dim, dtype=ti.f32, shape=n)
-vel = ti.Vector.field(dim, dtype=ti.f32, shape=n)
-grads = ti.Vector.field(dim, dtype=ti.f32, shape=n)
-
+pos = ti.Vector.field(2, dtype=_fp, shape=n)
+prepos = ti.Vector.field(2, dtype=_fp, shape=n)
+vel = ti.Vector.field(2, dtype=_fp, shape=n)
+grads = ti.Vector.field(2, dtype=_fp, shape=n)
 grid_size = kernelRadius * 1.5
-grid_n = ceil(minX / grid_size)
+grid_n = math.ceil(minX / grid_size)
 """
 grid_n = 16
 grid_size = 0.5/ grid_n  # Simulation domain of size [0, 1]
@@ -55,6 +53,7 @@ column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
 prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
 particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
 
+# new 
 
 poly6_factor = 315.0 / 64.0 / math.pi
 spiky_grad_factor = -45.0 / math.pi
@@ -75,6 +74,7 @@ def spiky_gradient(r, h):
         g_factor = spiky_grad_factor * x * x
         result = r * g_factor / r_len
     return result
+
 
 @ti.func
 def findNeighbors():
@@ -123,19 +123,12 @@ def findNeighbors():
 @ti.func
 def solveBoundaries():
     for i in range(n):
-        if pos[i][1] < 0:
+        if pos[i][1] <= 0:
             pos[i][1] = 0
-        if (pos[i][0] < 0): 
+        if (pos[i][0] <= 0): 
             pos[i][0] = 0
-        if (pos[i][0] > minX):
-            pos[i][0] = minX; 
-        """
-        
-        if (pos[i][2] < 0): 
-            pos[i][2] = 0
-        if (pos[i][2] > minZ):
-            pos[i][2] = minZ; 
-        """
+        if (pos[i][0] >= minX):
+            pos[i][0] = minX
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -159,94 +152,63 @@ def solveFluid():
     for i in range(n):
         rho = 0.0
         sumGrad2 = 0.0        
-        #_gradient = vec3f(0, 0, 0)
-        _gradient = vec3f(0, 0)
-
-        grid_idx = ti.floor(pos[i] * grid_n, int)
+        _gradient = vec3f([0.0, 0.0])
+        _pos = pos[i]
+        grid_idx = ti.floor(pos[i]/minX * grid_n, int)
+        #print(grid_idx)
         x_begin = max(grid_idx[0] - 1, 0)
         x_end = min(grid_idx[0] + 2, grid_n)
 
         y_begin = max(grid_idx[1] - 1, 0)
         y_end = min(grid_idx[1] + 2, grid_n)
-        
-        for neigh_i in range(x_begin, x_end):
-            for neigh_j in range(y_begin, y_end):
+
+        for neigh_i , neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):                    
-                    j = particle_id[p_idx]
-               
-                    _dist = pos[j] - pos[i]
+                    j = particle_id[p_idx]	        
+                    _dist = pos[j] - _pos
                     _norm = _dist.norm(eps=0)
-                    #"""
-                    # over there
+
                     _grad = spiky_gradient(-_dist, h)
                     _gradient += _grad
                     sumGrad2 += _grad.dot(_grad)
                     rho += poly6_value(_norm, h)
-                    """
-                    if _norm > 0:
-                        _dist = _dist.normalized()
 
-                    if _norm > h:
-                        grads[j] = vec3f(0, 0)
-                    else:
-                        
-                        r2 = _norm * _norm
-                        w = h2 - r2
-                        rho += kernelScale * w * w * w
-                        _grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;	
-                        grads[j] = _dist * _grad
-                        _gradient -= _dist * _grad
-                        sumGrad2 += _grad * _grad
-                    """
-                        
-        
-            
-        
+
+                   
+                
         sumGrad2 += _gradient.dot(_gradient)
-
         avgRho += rho
-        
-        C = rho / restDensity - 1.0
-        if C < 0.0:
+        _C = rho / restDensity - 1.0        
+        if _C < 0:
             continue
-        _lambda = -C / (sumGrad2 + 0.0001)
-
-        for neigh_i in range(x_begin, x_end):
-            for neigh_j in range(y_begin, y_end):
+        #if (sumGrad2 < 10): print(sumGrad2)
+        _lambda = -_C / (sumGrad2 + epsilon)
+        for neigh_i , neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
                 neigh_linear_idx = neigh_i * grid_n + neigh_j
                 for p_idx in range(list_head[neigh_linear_idx],
                                 list_tail[neigh_linear_idx]):                    
-                    j = particle_id[p_idx]	   
-                    """
-                    if (j == i):
-                        pos[j] += _lambda * _gradient
-                    else:
-                        pos[j] += _lambda * grads[j]
-                    """
-                    _dist = pos[j] - pos[i]
+                    j = particle_id[p_idx]
+                    _dist = pos[j] - _pos
                     pos[j] += _lambda * spiky_gradient(_dist, h)
-                    
-                    
+
 
 @ti.kernel
 def init():
-    _w = 10 
+    _w = 10
     _h = 10
     for i in range(n):
         #_y = i // (_h * _w)
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.03 * vec3f(_cur%_w + 5, _cur//_w)
-
+        pos[i] = 0.03 * vec3f(_cur%_w + ti.random(), _cur//_w + ti.random())
 
 @ti.kernel
 def update():
 
     findNeighbors()
-
     # predict 
     for i in range(n):
         vel[i] += gravity * sdt
@@ -258,24 +220,21 @@ def update():
     solveFluid()
 
     # derive velocities
-    """       
+    #"""
     for i in range(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        "" "
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
             pos[i] = prepos[i] + deltaV
-        "" "
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-    """
+    #"""
 win_x = 640
 win_y = 640
-
 
 gui = ti.GUI('Taichi DEM', (win_x, win_y))
 
@@ -286,7 +245,6 @@ while gui.running:
     for s in range(numSteps):
         update()
     _pos = pos.to_numpy()
-    gui.circles(_pos, radius=particleRadius* win_x)
+    gui.circles(_pos/minX, radius=particleRadius_show)
     
     gui.show()
-    step +=1 

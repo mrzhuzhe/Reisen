@@ -8,12 +8,12 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 400
+n = 4000
 epsilon = 1e-5
 
-minX = 1
+minX = 64
 screen_to_world_ratio = 640 / minX
-particleRadius = 0.01
+particleRadius = 0.3
 particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
@@ -226,7 +226,7 @@ def init():
         #_cur = i % (_h * _w)
         _cur = i
         #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.03 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
+        pos[i] = 0.03 * vec3f(_cur%_w + ti.random(), _cur//_w + ti.random())
 
 @ti.kernel
 def update():
