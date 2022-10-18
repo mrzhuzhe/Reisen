@@ -196,7 +196,7 @@ def main():
     scene = ti.ui.Scene()
 
     camera = ti.ui.make_camera()
-    camera.position(100, 100, 100)
+    camera.position(150, 50, 100)
     camera.lookat(0, 0, 0)
     scene.ambient_light((0.5, 0.5, 0.5))
     scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
