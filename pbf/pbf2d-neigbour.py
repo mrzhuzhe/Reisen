@@ -41,7 +41,7 @@ board_states = ti.Vector.field(2, float, ())
 bg_color = 0x112f41
 particle_color = 0x068587
 
-grid_size = 1.5
+grid_size = 2
 grid_n = math.ceil(boundary[0] / grid_size)
 """
 grid_n = 16

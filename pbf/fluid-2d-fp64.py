@@ -8,7 +8,7 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 100
+n = 300
 epsilon = 1e-5
 
 minX = 64
