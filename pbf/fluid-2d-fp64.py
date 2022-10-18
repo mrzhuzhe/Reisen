@@ -8,7 +8,7 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 4000
+n = 100
 epsilon = 1e-5
 
 minX = 64
@@ -68,7 +68,7 @@ def solveBoundaries():
         if (pos[i][0] <= 0): 
             pos[i][0] = 0
         if (pos[i][0] >= minX):
-            pos[i][0] = 0
+            pos[i][0] = minX
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -88,54 +88,43 @@ def applyViscosity(i, sdt):
 @ti.func
 def solveFluid():
 
-    avgRho = 0.0
+    #avgRho = 0.0
+    ti.loop_config(serialize=True)
     for i in range(n):
         rho = 0.0
         sumGrad2 = 0.0        
         _gradient = vec3f([0.0, 0.0])
         _pos = pos[i]
-        for j in range(n):		        
+        ti.loop_config(serialize=True)
+        for j in range(n):
             _dist = pos[j] - _pos
             _norm = _dist.norm(eps=0)
-            #"""
-            # over there
-            _grad = spiky_gradient(-_dist, h)
-            _gradient += _grad
-            sumGrad2 += _grad.dot(_grad)
-            rho += poly6_value(_norm, h)
-            #"""
-            """          
 
-            if _norm <=0 or _norm >= h:
+            if _norm > 0:
+                _dist = _dist.normalized()
+
+            if _norm > h:
                 grads[j] = vec3f(0, 0)              
             else:
-                w = (h - _norm) /h/h/h
+                r2 = _norm * _norm 
+                w = (h2 - r2) 
                 rho += kernelScale * w * w * w
-                g_factor = (kernelScale * 3.0 * w * w * (-2.0)) / restDensity;	
-                _grad = g_factor * _dist / _norm
-                grads[j] = _grad
-                _gradient -= _grad
-                sumGrad2 += _grad.dot(_grad)
-            """
-
-                   
-                
+                _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
+                grads[j] = _grad * _dist 
+                _gradient -= _grad * _dist 
+                sumGrad2 += _grad * _grad
+                                   
         sumGrad2 += _gradient.dot(_gradient)
-        avgRho += rho
+        #avgRho += rho
         _C = rho / restDensity - 1.0        
         if _C < 0:
             continue
-        #if (sumGrad2 < 10): print(sumGrad2)
         _lambda = -_C / (sumGrad2 + epsilon)
         for j in range(n):	
-            """
             if (j == i):
                 pos[j] += _lambda * _gradient
             else:
                 pos[j] += _lambda * grads[j]
-            """
-            _dist = pos[j] - _pos
-            pos[j] += _lambda * spiky_gradient(_dist, h)
 
 
 @ti.kernel
@@ -146,14 +135,13 @@ def init():
         #_y = i // (_h * _w)
         #_cur = i % (_h * _w)
         _cur = i
-        #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w)
-        pos[i] = 0.5 * vec3f(_cur%_w + 50 + ti.random(), _cur//_w + ti.random())
+        pos[i] = 1.5 * vec3f(_cur%_w + 10 + ti.random(), _cur//_w + ti.random())
 
 @ti.kernel
 def update():
 
     # predict 
-    for i in range(n):
+    for i in ti.ndrange(n):
         vel[i] += gravity * sdt
         prepos[i] = pos[i]
         pos[i] += vel[i] * sdt
@@ -163,21 +151,18 @@ def update():
     solveFluid()
 
     # derive velocities
-    """
-    for i in range(n):
+    for i in ti.ndrange(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        "" "
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
             pos[i] = prepos[i] + deltaV
-        "" "
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-    """
+    #"""
 win_x = 640
 win_y = 640
 
