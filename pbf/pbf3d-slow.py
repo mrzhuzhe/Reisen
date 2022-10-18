@@ -6,11 +6,13 @@ ti.init(arch=ti.gpu)
 screen_res = (800, 400, 400)
 screen_to_world_ratio = 10.0
 boundary = (screen_res[0] / screen_to_world_ratio,
-            screen_res[1] / screen_to_world_ratio)
+            screen_res[1] / screen_to_world_ratio,
+            screen_res[2] / screen_to_world_ratio)
 
 dim = 3
 num_particles_x = 20
-num_particles = num_particles_x * 20
+num_particles_z = 20
+num_particles = num_particles_x * num_particles_z * 20
 time_delta = 1.0 / 20.0
 epsilon = 1e-5
 particle_radius = 3.0
@@ -32,7 +34,6 @@ spiky_grad_factor = -45.0 / math.pi
 old_positions = ti.Vector.field(dim, float, num_particles)
 positions = ti.Vector.field(dim, float, num_particles)
 velocities = ti.Vector.field(dim, float, num_particles)
-positions32 = ti.Vector.field(dim, float, num_particles)
 
 lambdas = ti.field(float, num_particles)
 position_deltas = ti.Vector.field(dim, float, num_particles)
@@ -52,7 +53,6 @@ def poly6_value(s, h):
 
 @ti.func
 def spiky_gradient(r, h):
-    #result = ti.Vector([0.0, 0.0])
     result = ti.Vector([0.0, 0.0, 0.0])
     r_len = r.norm()
     if 0 < r_len and r_len < h:
@@ -74,7 +74,7 @@ def compute_scorr(pos_ji):
 @ti.func
 def confine_position_to_boundary(p):
     bmin = particle_radius_in_world
-    bmax = ti.Vector([board_states[None][0], boundary[1], 0]) - particle_radius_in_world
+    bmax = ti.Vector([board_states[None][0], boundary[1], boundary[2]]) - particle_radius_in_world
     for i in ti.static(range(dim)):
         # Use randomness to prevent particles from sticking into each other after clamping
         if p[i] <= bmin:
@@ -105,7 +105,6 @@ def substep():
     for p_i in range(num_particles):
         pos_i = positions[p_i]
 
-        #grad_i = ti.Vector([0.0, 0.0])
         grad_i = ti.Vector([0.0, 0.0, 0.0])
         sum_gradient_sqr = 0.0
         density_constraint = 0.0
@@ -129,21 +128,17 @@ def substep():
                                                 lambda_epsilon)
     # compute position deltas
     # Eq(12), (14)
-    #for p_i in range(num_particles):
+    for p_i in range(num_particles):
         pos_i = positions[p_i]
         lambda_i = lambdas[p_i]
 
-        #pos_delta_i = ti.Vector([0.0, 0.0])
         pos_delta_i = ti.Vector([0.0, 0.0, 0.0])
         for j in range(num_particles):
             pos_j = positions[j]
-            #lambda_j = lambdas[j]
+            lambda_j = lambdas[j]
             pos_ji = pos_i - pos_j
-            #scorr_ij = compute_scorr(pos_ji)
-            #pos_delta_i += (lambda_i + lambda_j + scorr_ij) * \
-            #    spiky_gradient(pos_ji, h_)
-
-            pos_delta_i += lambda_i * \
+            scorr_ij = compute_scorr(pos_ji)
+            pos_delta_i += (lambda_i + lambda_j + scorr_ij) * \
                 spiky_gradient(pos_ji, h_)
 
         pos_delta_i /= rho0
@@ -152,8 +147,8 @@ def substep():
         positions[p_i] += position_deltas[p_i]
         
     # apply position deltas
-    #for i in positions:
-    #    positions[i] += position_deltas[i]
+    for i in positions:
+        positions[i] += position_deltas[i]
 
 @ti.kernel
 def epilogue():
@@ -172,49 +167,36 @@ def run_pbf():
 
 
 def render(scene):
-    #gui.clear(bg_color)
-    #pos_np = positions.to_numpy()
-
-    #for j in range(dim):
-    #    pos_np[:, j] *= screen_to_world_ratio / screen_res[j]
-    #gui.circles(pos_np, radius=particle_radius, color=particle_color)
-    for i in range(num_particles):        
-        for j in range(dim):
-            positions32[i][j] = positions[i][j] * screen_to_world_ratio / screen_res[j]
-    scene.particles(positions32, color = (0, 1, 1), radius = particle_radius)
-    #gui.show()
+    scene.particles(positions, color = (0, 1, 1), radius = particle_radius_in_world)
 
 
 @ti.kernel
 def init_particles():
+
     for i in range(num_particles):
+        _square = i % (num_particles_x * num_particles_z)
+        _height = i // (num_particles_x * num_particles_z)
         delta = h_ * 0.8
-        offs = ti.Vector([(boundary[0] - delta * num_particles_x) * 0.5,
-                          boundary[1] * 0.02, 0.0])
-        positions[i] = ti.Vector([i % num_particles_x, i // num_particles_x, 0.0]) * delta + offs
+        #offs = ti.Vector([(boundary[0] - delta * num_particles_x) * 0.5,
+        #                  boundary[1] * 0.02, 0.0])
+        offs = ti.Vector([0, 0, 0])
+        positions[i] = ti.Vector([_square % num_particles_x, _height, _square // num_particles_z]) * delta + offs
         for c in ti.static(range(dim)):
             velocities[i][c] = (ti.random() - 0.5) * 4
-    board_states[None] = ti.Vector([boundary[0] - epsilon, -0.0, 0.0])
+
+    board_states[None] = ti.Vector([boundary[0] - epsilon, -0.0, boundary[2] - epsilon])
 
 
 def main():
     init_particles()
-    """
-    gui = ti.GUI('PBF2D', (800, 400))
-    while gui.running and not gui.get_event(gui.ESCAPE):
-        
-        run_pbf()
-        
-        render(gui)
-    """
     
-    window = ti.ui.Window("simple pendulum", (800, 400))
+    window = ti.ui.Window("simple pendulum", (800, 800))
     canvas = window.get_canvas()
     canvas.set_background_color((0, 0, 0))
     scene = ti.ui.Scene()
 
     camera = ti.ui.make_camera()
-    camera.position(500, 500, 500)
+    camera.position(100, 100, 100)
     camera.lookat(0, 0, 0)
     scene.ambient_light((0.5, 0.5, 0.5))
     scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
