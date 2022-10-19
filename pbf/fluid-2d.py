@@ -33,28 +33,6 @@ pos = ti.Vector.field(2, dtype=_fp, shape=n)
 prepos = ti.Vector.field(2, dtype=_fp, shape=n)
 vel = ti.Vector.field(2, dtype=_fp, shape=n)
 grads_j = ti.Vector.field(2, dtype=_fp, shape=n)
-# new 
-
-poly6_factor = 315.0 / 64.0 / math.pi
-spiky_grad_factor = -45.0 / math.pi
-@ti.func
-def poly6_value(s, h):
-    result = 0.0
-    if 0 < s and s < h:
-        x = (h * h - s * s) / (h * h * h)
-        result = poly6_factor * x * x * x
-    return result
-
-@ti.func
-def spiky_gradient(r, h):
-    result = ti.Vector([0.0, 0.0])
-    r_len = r.norm()
-    if 0 < r_len and r_len < h:
-        x = (h - r_len) / (h * h * h)
-        g_factor = spiky_grad_factor * x * x
-        result = r * g_factor / r_len
-    return result
-
 
 @ti.func
 def findNeighbors():
@@ -63,12 +41,12 @@ def findNeighbors():
 @ti.func
 def solveBoundaries():
     for i in range(n):
-        if pos[i][1] <= 0:
-            pos[i][1] = 0
-        if (pos[i][0] <= 0): 
-            pos[i][0] = 0
-        if (pos[i][0] >= minX):
-            pos[i][0] = minX
+        if pos[i][1] <= 1:
+            pos[i][1] = 1
+        if (pos[i][0] <= 1): 
+            pos[i][0] = 1
+        if (pos[i][0] >= minX-1):
+            pos[i][0] = minX-1
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -86,8 +64,16 @@ def applyViscosity(i, sdt):
     vel[i] += viscosity * _delta
 
 @ti.func
-def calculateGrad(w: float, _norm: float) -> float:
-    return  (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
+def getDensityAndNormal(_norm: float, dist: ti.template()):
+    r2 = _norm * _norm 
+    w = (h2 - r2) 
+    if _norm > 0:
+        dist = dist.normalized()
+    return w, dist
+
+@ti.func
+def calculateGrad(w: float, _norm: float):    
+    return  (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity
 
 @ti.func
 def solveFluid():
@@ -99,18 +85,14 @@ def solveFluid():
         _pos = pos[i]
         for j in range(n):
             _dist = pos[j] - _pos
-            _norm = _dist.norm(eps=0)
-
-            if _norm > 0:
-                _dist = _dist.normalized()
-
+            _norm = _dist.norm()
             if _norm < h:
-                r2 = _norm * _norm 
-                w = (h2 - r2) 
-                rho += kernelScale * w * w * w
-                _grad = calculateGrad(w, _norm)
+                w, _dist = getDensityAndNormal(_norm, _dist)
+                _grad = calculateGrad(w, _norm)                
                 _gradient -= _grad * _dist 
-                sumGrad2 += _grad * _grad           
+                sumGrad2 += _grad * _grad
+                rho += kernelScale * w * w * w
+                         
         sumGrad2 += _gradient.dot(_gradient)
         #avgRho += rho
         _C = rho / restDensity - 1.0        
@@ -119,33 +101,24 @@ def solveFluid():
         _lambda = -_C / (sumGrad2 + epsilon)
 
         for j in range(n):
-            _dist = pos[j] - _pos
-            _norm = _dist.norm(eps=0)
-            _grad = 0.0
-            
-            if _norm > 0:
-                _dist = _dist.normalized()
-
-            if _norm < h:
-                r2 = _norm * _norm 
-                w = (h2 - r2) 
-                _grad = calculateGrad(w, _norm)
-
             if (j == i):
                pos[j] += _lambda * _gradient
             else:
-               pos[j] += _lambda * _grad * _dist
+                _dist = pos[j] - _pos
+                _norm = _dist.norm(eps=0)
+                _grad = 0.0
+                if _norm < h:
+                    w, _dist = getDensityAndNormal(_norm, _dist)   
+                    _grad = calculateGrad(w, _norm)                
+                pos[j] += _lambda * _grad * _dist
         
 
 @ti.kernel
 def init():
     _w = 10
-    _h = 10
     for i in range(n):
-        #_y = i // (_h * _w)
-        #_cur = i % (_h * _w)
         _cur = i
-        pos[i] = 1.5 * vec3f(_cur%_w + 10 + ti.random(), _cur//_w + ti.random())
+        pos[i] = vec3f(_cur%_w + 0.5 * ti.random(), _cur//_w  + 0.5 * ti.random()) + vec3f(10, 0)
 
 @ti.kernel
 def update():
@@ -176,7 +149,7 @@ def update():
 win_x = 640
 win_y = 640
 
-gui = ti.GUI('Taichi DEM', (win_x, win_y))
+gui = ti.GUI('fluid-2D', (win_x, win_y))
 
 step = 0
 init()
