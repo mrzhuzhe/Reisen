@@ -52,6 +52,26 @@ column_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="column_sum")
 prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
 particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
 
+@ti.func 
+def tougong(i:int, sdt: float):
+
+    vel[i] += gravity * sdt
+    """
+    _toCenter = pos[i] - vec3f(0.5, 0.5, 0.5)          
+    _norm = _toCenter.norm()          
+    "" "
+    if step > 500:
+        if _norm < 0.1:
+            gf[i].f += _toCenter.normalized() * (1 - _norm) * gf[i].m * 1000
+            
+    else: 
+    "" "    
+    _rotateforce  = vec3f(_toCenter[2], 0, -_toCenter[0]).normalized() 
+    vel[i] += -_toCenter.normalized() * (1 - _norm)  * 50 * sdt
+    vel[i] += _rotateforce * (0.5 - abs(0.5 - pos[i][1])) * 5 * sdt
+    """
+    return vel[i]
+
 @ti.func
 def getDensityAndNormal(_norm: float, dist: ti.template()):
     r2 = _norm * _norm 
@@ -204,7 +224,7 @@ def update():
 
     # predict 
     for i in range(n):
-        vel[i] += gravity * sdt
+        vel[i] = tougong(i, sdt)
         prepos[i] = pos[i]
         pos[i] += vel[i] * sdt
 
