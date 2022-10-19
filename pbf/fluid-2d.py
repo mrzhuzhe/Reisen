@@ -1,6 +1,7 @@
 import math
 import taichi as ti
 import taichi.math as tm
+
 _fp  = ti.f32
 ti.init(arch=ti.gpu, default_fp=_fp) 
 vec3f = ti.types.vector(2, _fp)
@@ -8,7 +9,7 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 300
+n = 3000
 epsilon = 1e-5
 
 minX = 64
@@ -31,8 +32,7 @@ kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
 pos = ti.Vector.field(2, dtype=_fp, shape=n)
 prepos = ti.Vector.field(2, dtype=_fp, shape=n)
 vel = ti.Vector.field(2, dtype=_fp, shape=n)
-grads = ti.Vector.field(2, dtype=_fp, shape=n)
-
+grads_j = ti.Vector.field(2, dtype=_fp, shape=n)
 # new 
 
 poly6_factor = 315.0 / 64.0 / math.pi
@@ -86,16 +86,17 @@ def applyViscosity(i, sdt):
     vel[i] += viscosity * _delta
 
 @ti.func
-def solveFluid():
+def calculateGrad(w: float, _norm: float) -> float:
+    return  (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
 
+@ti.func
+def solveFluid():
     #avgRho = 0.0
-    ti.loop_config(serialize=True)
     for i in range(n):
         rho = 0.0
         sumGrad2 = 0.0        
         _gradient = vec3f([0.0, 0.0])
         _pos = pos[i]
-        ti.loop_config(serialize=True)
         for j in range(n):
             _dist = pos[j] - _pos
             _norm = _dist.norm(eps=0)
@@ -103,29 +104,38 @@ def solveFluid():
             if _norm > 0:
                 _dist = _dist.normalized()
 
-            if _norm > h:
-                grads[j] = vec3f(0, 0)              
-            else:
+            if _norm < h:
                 r2 = _norm * _norm 
                 w = (h2 - r2) 
                 rho += kernelScale * w * w * w
-                _grad = (kernelScale * 3.0 * w * w * (-2.0 * _norm)) / restDensity;	
-                grads[j] = _grad * _dist 
+                _grad = calculateGrad(w, _norm)
                 _gradient -= _grad * _dist 
-                sumGrad2 += _grad * _grad
-                                   
+                sumGrad2 += _grad * _grad           
         sumGrad2 += _gradient.dot(_gradient)
         #avgRho += rho
         _C = rho / restDensity - 1.0        
         if _C < 0:
             continue
         _lambda = -_C / (sumGrad2 + epsilon)
-        for j in range(n):	
-            if (j == i):
-                pos[j] += _lambda * _gradient
-            else:
-                pos[j] += _lambda * grads[j]
 
+        for j in range(n):
+            _dist = pos[j] - _pos
+            _norm = _dist.norm(eps=0)
+            _grad = 0.0
+            
+            if _norm > 0:
+                _dist = _dist.normalized()
+
+            if _norm < h:
+                r2 = _norm * _norm 
+                w = (h2 - r2) 
+                _grad = calculateGrad(w, _norm)
+
+            if (j == i):
+               pos[j] += _lambda * _gradient
+            else:
+               pos[j] += _lambda * _grad * _dist
+        
 
 @ti.kernel
 def init():

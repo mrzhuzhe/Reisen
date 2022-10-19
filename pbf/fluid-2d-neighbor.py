@@ -8,7 +8,7 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 4000
+n = 400
 epsilon = 1e-5
 
 minX = 64
@@ -149,6 +149,7 @@ def applyViscosity(i, sdt):
 def solveFluid():
 
     avgRho = 0.0
+    ti.loop_config(serialize=True)
     for i in range(n):
         rho = 0.0
         sumGrad2 = 0.0        
@@ -242,22 +243,19 @@ def update():
     solveBoundaries()
     solveFluid()
 
-    # derive velocities
-    """
+    # derive velocities    
     for i in range(n):
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        " ""
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
-            pos[i] = prepos[i] + deltaV
-        " ""
+            pos[i] = prepos[i] + deltaV        
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
-    """
+   
 win_x = 640
 win_y = 640
 
