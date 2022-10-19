@@ -59,53 +59,42 @@ grain_count = ti.field(dtype=ti.i32,
                        shape=(grid_n, grid_n),
                        name="grain_count")
 column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
-prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
+prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n), name="prefix_sum")
 particle_id = ti.field(dtype=ti.i32, shape=num_particles, name="particle_id")
 
 @ti.func
 def findNeighbors():
     grain_count.fill(0)
-
-    # count grain O(n)
     for i in range(num_particles):
         grid_idx = ti.floor(positions[i]/boundary[0] * grid_n, int)
-        grain_count[grid_idx] += 1    
-
-    column_sum.fill(0)
-    # count every horizon column O(1)
-    for i in range(grid_n):
-        sum = 0
-        for j in range(grid_n):
-            sum += grain_count[i, j]
-        column_sum[i] = sum
-
-    prefix_sum[0, 0] = 0
-
-    #   O(1)
-    ti.loop_config(serialize=True)
-    for i in range(1, grid_n):
-        prefix_sum[i, 0] = prefix_sum[i - 1, 0] + column_sum[i - 1]
+        grain_count[grid_idx] += 1
     
-    #   O(1)
-    for i in range(grid_n):
-        for j in range(grid_n):
-            if j == 0:
-                prefix_sum[i, j] += grain_count[i, j]
-            else:
-                prefix_sum[i, j] = prefix_sum[i, j - 1] + grain_count[i, j]
+    column_sum.fill(0)
+    # kernel comunicate with global variable ???? this is a bit amazing 
+    for i, j in ti.ndrange(grid_n, grid_n):        
+        ti.atomic_add(column_sum[i], grain_count[i, j])
 
-            linear_idx = i * grid_n + j
+    # this is because memory mapping can be out of order
+    _prefix_sum_cur = 0
+    
+    for i in ti.ndrange(grid_n):
+        prefix_sum[i] = ti.atomic_add(_prefix_sum_cur, column_sum[i])
+    
+    for i, j in ti.ndrange(grid_n, grid_n):        
+        # we cannot visit prefix_sum[i,j] in this loop
+        pre = ti.atomic_add(prefix_sum[i], grain_count[i, j])        
+        linear_idx = i * grid_n  + j
+        list_head[linear_idx] = pre
+        list_cur[linear_idx] = list_head[linear_idx]
+        # only pre pointer is useable
+        list_tail[linear_idx] = pre + grain_count[i, j]       
 
-            list_head[linear_idx] = prefix_sum[i, j] - grain_count[i, j]
-            list_cur[linear_idx] = list_head[linear_idx]
-            list_tail[linear_idx] = prefix_sum[i, j]
-
-    #   O(n)
     for i in range(num_particles):
-        grid_idx = ti.floor(positions[i]/boundary[0] * grid_n, int)      
+        grid_idx = ti.floor(positions[i]/boundary[0]  * grid_n, int)
         linear_idx = grid_idx[0] * grid_n + grid_idx[1]
         grain_location = ti.atomic_add(list_cur[linear_idx], 1)
         particle_id[grain_location] = i
+        
 
 @ti.func
 def poly6_value(s, h):
@@ -162,10 +151,11 @@ def prologue():
         vel += g * time_delta
         pos += vel * time_delta
         positions[i] = confine_position_to_boundary(pos)
+    
+    findNeighbors()
 
 @ti.kernel
 def substep():
-    findNeighbors()
     # compute lambdas
     # Eq (8) ~ (11)
     for p_i in range(num_particles):
