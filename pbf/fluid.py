@@ -1,22 +1,25 @@
+from math import ceil
 import taichi as ti
 import taichi.math as tm
 
+_fp = ti.f32
 ti.init(arch=ti.gpu) 
 
-vec3f = ti.types.vector(3, ti.f32)
+vec3f = ti.types.vector(3, _fp)
 gravity = vec3f(0, -9.8, 0)
 dt = 0.01
-numSteps = 10
+numSteps = 5
 sdt = dt / numSteps
-n = 9000
+n = 10000
 
-minX = 3
-minZ = 3
-particleRadius = 0.1
+minX = 1
+minZ = 1
+minY = 1
+particleRadius = 0.01
 maxVel = 0.4 * particleRadius
 kernelRadius = 3.0 * particleRadius
 particleDiameter = 2 * particleRadius
-restDensity = 1.0 / (particleDiameter * particleDiameter)
+restDensity = 1 / (particleDiameter * particleDiameter)
 
 viscosity = 3
 h = kernelRadius
@@ -24,28 +27,93 @@ h2 = h * h
 PI = 3.14
 kernelScale = 4.0 / (PI * h2 * h2 * h2 * h2);		
 
-pos = ti.Vector.field(3, dtype=ti.f32, shape=n)
-prepos = ti.Vector.field(3, dtype=ti.f32, shape=n)
-vel = ti.Vector.field(3, dtype=ti.f32, shape=n)
-grads = ti.Vector.field(3, dtype=ti.f32, shape=n)
+pos = ti.Vector.field(3, dtype=_fp, shape=n)
+pos32 = ti.Vector.field(3, dtype=ti.f32, shape=n)
+prepos = ti.Vector.field(3, dtype=_fp, shape=n)
+vel = ti.Vector.field(3, dtype=_fp, shape=n)
+grads = ti.Vector.field(3, dtype=_fp, shape=n)
+
+eps = 1e-5
+grid_size = 0.05
+grid_n = ceil(1 / grid_size)
+
+print(f"Grid size: {grid_n}x{grid_n}")
+
+assert particleRadius * 2 < grid_size
+
+list_head = ti.field(dtype=ti.i32, shape=grid_n * grid_n * grid_n)
+list_cur = ti.field(dtype=ti.i32, shape=grid_n * grid_n * grid_n)
+list_tail = ti.field(dtype=ti.i32, shape=grid_n * grid_n * grid_n)
+
+grain_count = ti.field(dtype=ti.i32,
+                       shape=(grid_n, grid_n, grid_n),
+                       name="grain_count")
+column_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="column_sum")
+prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
+particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
+
+@ti.func
+def getDensityAndNormal(_norm: float, dist: ti.template()):
+    r2 = _norm * _norm 
+    w = (h2 - r2) 
+    if _norm > 0:
+        dist = dist.normalized()
+    return w, dist
+
+@ti.func
+def calculateGrad(w: float, _norm: float):    
+    return  (kernelScale * 3 * w * w * (-2.0 * _norm)) / restDensity
 
 @ti.func
 def findNeighbors():
-    pass
+    grain_count.fill(0)
+
+    for i in range(n):
+        grid_idx = ti.floor(pos[i]* grid_n, int)
+        grain_count[grid_idx] += 1
+    
+    column_sum.fill(0)
+    # kernel comunicate with global variable ???? this is a bit amazing 
+    for i, j, k in ti.ndrange(grid_n, grid_n, grid_n):        
+        ti.atomic_add(column_sum[i, j], grain_count[i, j, k])
+
+    # this is because memory mapping can be out of order
+    _prefix_sum_cur = 0    
+    for i, j in ti.ndrange(grid_n, grid_n):
+        prefix_sum[i, j] = ti.atomic_add(_prefix_sum_cur, column_sum[i, j])
+    
+        
+    for i, j, k in ti.ndrange(grid_n, grid_n, grid_n):        
+        # we cannot visit prefix_sum[i,j] in this loop
+        pre = ti.atomic_add(prefix_sum[i,j], grain_count[i, j, k])        
+        linear_idx = i * grid_n * grid_n + j * grid_n + k
+        list_head[linear_idx] = pre
+        list_cur[linear_idx] = list_head[linear_idx]
+        # only pre pointer is useable
+        list_tail[linear_idx] = pre + grain_count[i, j, k]       
+
+    for i in range(n):
+        grid_idx = ti.floor(pos[i] * grid_n, int)
+        linear_idx = grid_idx[0] * grid_n * grid_n + grid_idx[1] * grid_n + grid_idx[2]
+        grain_location = ti.atomic_add(list_cur[linear_idx], 1)
+        particle_id[grain_location] = i
 
 @ti.func
 def solveBoundaries():
+    # if there is not random it will be very unstable at border
     for i in range(n):
-        if pos[i][1] < 0:
-            pos[i][1] = 0
-        if (pos[i][0] < -minX): 
-            pos[i][0] = -minX
-        if (pos[i][0] > minX):
-            pos[i][0] = minX; 
-        if (pos[i][2] < -minZ): 
-            pos[i][2] = -minZ
-        if (pos[i][2] > minZ):
-            pos[i][2] = minZ; 
+        if pos[i][1] <= 0:
+            pos[i][1] = eps * ti.random()
+        if pos[i][1] >= minY:
+            pos[i][1] = minY - eps * ti.random(); 
+        if (pos[i][0] <= 0): 
+            pos[i][0] = eps * ti.random()
+        if (pos[i][0] >= minX):
+            pos[i][0] = minX - eps * ti.random(); 
+        if (pos[i][2] <= 0): 
+            pos[i][2] = eps * ti.random()
+        if (pos[i][2] >= minZ):
+            pos[i][2] = minZ - eps * ti.random(); 
 
 @ti.func
 def applyViscosity(i, sdt):
@@ -71,25 +139,32 @@ def solveFluid():
         sumGrad2 = 0.0        
         _gradient = vec3f(0, 0, 0)
 
-        # all Neighbors
-        for j in range(n):
-            _dist = pos[j] - pos[i]
-            _norm = _dist.norm()
-            if _norm > 0:
-                _dist = _dist.normalized()
+        grid_idx = ti.floor(pos[i] * grid_n, int)
+        #print(grid_idx)
+        x_begin = max(grid_idx[0] - 1, 0)
+        x_end = min(grid_idx[0] + 2, grid_n)
 
-            if _norm > h:
-                grads[j] = vec3f(0, 0, 0)
-            else:
-                r2 = _norm * _norm
-                w = h2 - r2
-                rho += kernelScale * w * w * w
-                _grad = (kernelScale * 3.0 * w * w * (-2.0 )) / restDensity;	
-                grads[j] = _dist * _grad
-                _gradient -= _dist * _grad
-                sumGrad2 += _grad * _grad
+        y_begin = max(grid_idx[1] - 1, 0)
+        y_end = min(grid_idx[1] + 2, grid_n)
+
+        z_begin = max(grid_idx[2] - 1, 0)
+        z_end = min(grid_idx[2] + 2, grid_n)
+      
+        for neigh_i, neigh_j, neigh_k in ti.ndrange((x_begin,x_end),(y_begin,y_end),(z_begin,z_end)):            
+            neigh_linear_idx = neigh_i * grid_n * grid_n + neigh_j * grid_n + neigh_k
+            for p_idx in range(list_head[neigh_linear_idx],
+                            list_tail[neigh_linear_idx]):
+                j = particle_id[p_idx]                
+                _dist = pos[j] - pos[i]
+                _norm = _dist.norm()
+                if _norm < h:
+                    w, _dist = getDensityAndNormal(_norm, _dist)
+                    _grad = calculateGrad(w, _norm)                
+                    _gradient -= _grad * _dist 
+                    sumGrad2 += _grad * _grad
+                    rho += kernelScale * w * w * w
         
-        sumGrad2 += _gradient.norm_sqr()
+        sumGrad2 += _gradient.dot(_gradient)
         avgRho += rho
         
         C = rho / restDensity - 1.0
@@ -97,27 +172,35 @@ def solveFluid():
             continue
         _lambda = -C / (sumGrad2 + 0.0001)
 
-        for j in range(n):			
-            if (j == i) :
-                pos[j] += _lambda * _gradient
-            else:
-                pos[j]  += _lambda * grads[j]
-                    
+        for neigh_i, neigh_j, neigh_k in ti.ndrange((x_begin,x_end),(y_begin,y_end),(z_begin,z_end)):
+            neigh_linear_idx = neigh_i * grid_n * grid_n + neigh_j * grid_n + neigh_k
+            for p_idx in range(list_head[neigh_linear_idx],
+                            list_tail[neigh_linear_idx]):
+                j = particle_id[p_idx]		
+                if (j == i) :
+                    pos[j] += _lambda * _gradient
+                else:
+                    _dist = pos[j] - pos[i]
+                    _norm = _dist.norm(eps=0)
+                    _grad = 0.0
+                    if _norm < h:
+                        w, _dist = getDensityAndNormal(_norm, _dist)   
+                        _grad = calculateGrad(w, _norm)                
+                    pos[j] += _lambda * _grad * _dist
 
 @ti.kernel
 def init():
-    _w = 10 
-    _h = 10
+    _w = 20 
+    _h = 20
     for i in range(n):
         _y = i // (_h * _w)
         _cur = i % (_h * _w)
-        pos[i] = 0.3 * vec3f(_cur%_w, _y, _cur//_w)
+        #pos[i] = 0.03 * vec3f(_cur%_w, _y, _cur//_w) + vec3f(0.1, 0.1, 0.1)
+        pos[i] = 0.03 * vec3f(_cur%_w + ti.random(), _y, _cur//_w + ti.random()) + vec3f(0.1, 0.1, 0.1)
 
 
 @ti.kernel
 def update():
-
-    #findNeighbors()
 
     # predict 
     for i in range(n):
@@ -127,6 +210,8 @@ def update():
 
     # solve
     solveBoundaries()
+
+    findNeighbors()    
     solveFluid()
 
     # derive velocities
@@ -134,12 +219,11 @@ def update():
         deltaV = pos[i] - prepos[i]
 
         # CFL
-        #"""
         _Vnorm = deltaV.norm()
         if _Vnorm > maxVel:
             deltaV *= maxVel / _Vnorm
             pos[i] = prepos[i] + deltaV
-        #"""
+    
         vel[i] = deltaV / sdt
         
         #applyViscosity(i, sdt)
@@ -147,13 +231,14 @@ def update():
 win_x = 640
 win_y = 640
 
-window = ti.ui.Window("simple pendulum", (win_x, win_y))
+window = ti.ui.Window("simple pendulum", (win_x, win_y), vsync=True)
+#window = ti.ui.Window("simple pendulum", (win_x, win_y))
 canvas = window.get_canvas()
 canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(15, 15, 15)
+camera.position(2.5, 1, 2)
 camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
