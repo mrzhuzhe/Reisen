@@ -12,16 +12,16 @@ numSteps = 5
 sdt = dt / numSteps
 n = 10000
 
-minX = 1
-minZ = 1
-minY = 1
+maxX = 1
+maxZ = 1
+maxY = 1
 particleRadius = 0.01
-maxVel = 0.4 * particleRadius
+maxVel = 0.5 * particleRadius
 kernelRadius = 3.0 * particleRadius
 particleDiameter = 2 * particleRadius
 restDensity = 1 / (particleDiameter * particleDiameter)
 
-viscosity = 3
+viscosity = 0.01
 h = kernelRadius
 h2 = h * h
 PI = 3.14
@@ -53,24 +53,32 @@ prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
 particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
 
 @ti.func 
-def tougong(i:int, sdt: float):
-
+def tougong(i:int, sdt: float, step: int):
     vel[i] += gravity * sdt
-    """
+    #"""
     _toCenter = pos[i] - vec3f(0.5, 0.5, 0.5)          
     _norm = _toCenter.norm()          
-    "" "
     if step > 500:
         if _norm < 0.1:
-            gf[i].f += _toCenter.normalized() * (1 - _norm) * gf[i].m * 1000
+            vel[i] += _toCenter.normalized() * (1 - _norm) * 1000
             
-    else: 
-    "" "    
-    _rotateforce  = vec3f(_toCenter[2], 0, -_toCenter[0]).normalized() 
-    vel[i] += -_toCenter.normalized() * (1 - _norm)  * 50 * sdt
-    vel[i] += _rotateforce * (0.5 - abs(0.5 - pos[i][1])) * 5 * sdt
-    """
+    if 500 > step > 100: 
+        _rotateforce  = vec3f(_toCenter[2], 0, -_toCenter[0]).normalized() 
+        vel[i] += -_toCenter.normalized() * (1 - _norm)  * 50 * sdt
+        vel[i] += _rotateforce * (0.5 - abs(0.5 - pos[i][1])) * 5 * sdt
+    #"""
     return vel[i]
+
+@ti.func
+def getNeighborGrid(i):
+    grid_idx = ti.floor(pos[i]/maxX * grid_n, int)
+    x_begin = max(grid_idx[0] - 1, 0)
+    x_end = min(grid_idx[0] + 2, grid_n)
+    y_begin = max(grid_idx[1] - 1, 0)
+    y_end = min(grid_idx[1] + 2, grid_n) 
+    z_begin = max(grid_idx[2] - 1, 0)
+    z_end = min(grid_idx[2] + 2, grid_n)
+    return x_begin, x_end, y_begin, y_end, z_begin, z_end 
 
 @ti.func
 def getDensityAndNormal(_norm: float, dist: ti.template()):
@@ -124,52 +132,47 @@ def solveBoundaries():
     for i in range(n):
         if pos[i][1] <= 0:
             pos[i][1] = eps * ti.random()
-        if pos[i][1] >= minY:
-            pos[i][1] = minY - eps * ti.random(); 
+        if pos[i][1] >= maxY:
+            pos[i][1] = maxY - eps * ti.random(); 
         if (pos[i][0] <= 0): 
             pos[i][0] = eps * ti.random()
-        if (pos[i][0] >= minX):
-            pos[i][0] = minX - eps * ti.random(); 
+        if (pos[i][0] >= maxX):
+            pos[i][0] = maxX - eps * ti.random(); 
         if (pos[i][2] <= 0): 
             pos[i][2] = eps * ti.random()
-        if (pos[i][2] >= minZ):
-            pos[i][2] = minZ - eps * ti.random(); 
+        if (pos[i][2] >= maxZ):
+            pos[i][2] = maxZ - eps * ti.random(); 
 
 @ti.func
 def applyViscosity(i, sdt):
     avgVel = vec3f(0, 0, 0)
-			
-    num = n
-    for j in range(n):			
-        avgVel += vel[j]
-		
-				
-    avgVel /= num
-    
-    _delta = avgVel -  vel[i]
-    
-    vel[i] += viscosity * _delta
+    _count = 0    
+    x_begin, x_end, y_begin, y_end, z_begin, z_end = getNeighborGrid(i)
+    for neigh_i, neigh_j, neigh_k in ti.ndrange((x_begin,x_end),(y_begin,y_end),(z_begin,z_end)):            
+            neigh_linear_idx = neigh_i * grid_n * grid_n + neigh_j * grid_n + neigh_k
+            for p_idx in range(list_head[neigh_linear_idx],
+                            list_tail[neigh_linear_idx]):                    
+                j = particle_id[p_idx]
+                _dist = pos[i] - pos[j]
+                if _dist.norm() < h:			
+                    avgVel += vel[j]
+                    _count += 1
+    # averge nearby particles
+    if _count > 0:                
+        avgVel /= _count        
+        _delta = avgVel -  vel[i]        
+        vel[i] += viscosity * _delta
 
 @ti.func
 def solveFluid():
 
-    avgRho = 0.0
+    #avgRho = 0.0 for debug
     for i in range(n):
         rho = 0.0
         sumGrad2 = 0.0        
         _gradient = vec3f(0, 0, 0)
 
-        grid_idx = ti.floor(pos[i] * grid_n, int)
-        #print(grid_idx)
-        x_begin = max(grid_idx[0] - 1, 0)
-        x_end = min(grid_idx[0] + 2, grid_n)
-
-        y_begin = max(grid_idx[1] - 1, 0)
-        y_end = min(grid_idx[1] + 2, grid_n)
-
-        z_begin = max(grid_idx[2] - 1, 0)
-        z_end = min(grid_idx[2] + 2, grid_n)
-      
+        x_begin, x_end, y_begin, y_end, z_begin, z_end = getNeighborGrid(i)      
         for neigh_i, neigh_j, neigh_k in ti.ndrange((x_begin,x_end),(y_begin,y_end),(z_begin,z_end)):            
             neigh_linear_idx = neigh_i * grid_n * grid_n + neigh_j * grid_n + neigh_k
             for p_idx in range(list_head[neigh_linear_idx],
@@ -185,7 +188,7 @@ def solveFluid():
                     rho += kernelScale * w * w * w
         
         sumGrad2 += _gradient.dot(_gradient)
-        avgRho += rho
+        #avgRho += rho
         
         C = rho / restDensity - 1.0
         if C < 0.0:
@@ -220,11 +223,11 @@ def init():
 
 
 @ti.kernel
-def update():
+def update(step: int):
 
     # predict 
     for i in range(n):
-        vel[i] = tougong(i, sdt)
+        vel[i] = tougong(i, sdt, step)
         prepos[i] = pos[i]
         pos[i] += vel[i] * sdt
 
@@ -246,13 +249,14 @@ def update():
     
         vel[i] = deltaV / sdt
         
-        #applyViscosity(i, sdt)
+        applyViscosity(i, sdt)
 
 win_x = 640
 win_y = 640
 
-window = ti.ui.Window("simple pendulum", (win_x, win_y), vsync=True)
-#window = ti.ui.Window("simple pendulum", (win_x, win_y))
+window = ti.ui.Window("pbf 3d", 
+(win_x, win_y), vsync=True
+)
 canvas = window.get_canvas()
 canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
@@ -272,7 +276,7 @@ while window.running:
     scene.set_camera(camera)
     
     for s in range(numSteps):
-        update()    
+        update(step)    
     
     scene.particles(pos, color = (0, 1, 1), radius = particleRadius)
 

@@ -9,7 +9,7 @@ gravity = vec3f([0, -9.8])
 dt = 0.01
 numSteps = 5
 sdt = dt / numSteps
-n = 3000
+n = 300
 epsilon = 1e-5
 
 minX = 64
@@ -22,7 +22,7 @@ particleDiameter = 2 * particleRadius
 restDensity = 1.0 / (particleDiameter * particleDiameter)
 # 2d poly6 (SPH based shallow water simulation
 
-viscosity = 3
+viscosity = 0.3
 h = kernelRadius 
 h2 = h * h
 _PI = math.pi
@@ -50,18 +50,20 @@ def solveBoundaries():
 
 @ti.func
 def applyViscosity(i, sdt):
-    #avgVel = vec3f(0, 0, 0)
     avgVel = vec3f(0, 0)
-    num = n
-    for j in range(n):			
-        avgVel += vel[j]
-		
-				
-    avgVel /= num
-    
-    _delta = avgVel -  vel[i]
-    
-    vel[i] += viscosity * _delta
+    _count = 0
+    for j in range(n):
+        _dist = pos[i] - pos[j]
+        if _dist.norm() < h:			
+            avgVel += vel[j]
+            _count += 1
+    if _count > 0:
+         		
+        avgVel /= _count
+        
+        _delta = avgVel -  vel[i]
+        
+        vel[i] += viscosity * _delta
 
 @ti.func
 def getDensityAndNormal(_norm: float, dist: ti.template()):
@@ -118,7 +120,7 @@ def init():
     _w = 10
     for i in range(n):
         _cur = i
-        pos[i] = vec3f(_cur%_w + 0.5 * ti.random(), _cur//_w  + 0.5 * ti.random()) + vec3f(10, 0)
+        pos[i] = vec3f(_cur%_w + 0.5 * ti.random(), _cur//_w  + 0.5 * ti.random()) + vec3f(10, 5)
 
 @ti.kernel
 def update():
@@ -144,7 +146,7 @@ def update():
             pos[i] = prepos[i] + deltaV
         vel[i] = deltaV / sdt
         
-        #applyViscosity(i, sdt)
+        applyViscosity(i, sdt)
     #"""
 win_x = 640
 win_y = 640

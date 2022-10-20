@@ -11,8 +11,8 @@ sdt = dt / numSteps
 n = 3000
 epsilon = 1e-5
 
-minX = 64.0
-screen_to_world_ratio = 640.0 / minX
+maxX = 64.0
+screen_to_world_ratio = 640.0 / maxX
 particleRadius = 0.3
 particleRadius_show = particleRadius * screen_to_world_ratio
 maxVel = 0.4 * particleRadius
@@ -21,7 +21,7 @@ particleDiameter = 2.0 * particleRadius
 restDensity = 1.0 / (particleDiameter * particleDiameter)
 # 2d poly6 (SPH based shallow water simulation
 
-viscosity = 3
+viscosity = 0.3
 h = kernelRadius 
 h2 = h * h
 _PI = math.pi
@@ -34,7 +34,7 @@ vel = ti.Vector.field(2, dtype=_fp, shape=n)
 grads = ti.Vector.field(2, dtype=_fp, shape=n)
 
 grid_size = 4.0
-grid_n = math.ceil(minX / grid_size)
+grid_n = math.ceil(maxX / grid_size)
 
 print(f"Grid size: {grid_n}x{grid_n}")
 
@@ -57,7 +57,7 @@ def findNeighbors():
 
     grain_count.fill(0)
     for i in range(n):
-        grid_idx = ti.floor(pos[i]/minX * grid_n, int)
+        grid_idx = ti.floor(pos[i]/maxX * grid_n, int)
         grain_count[grid_idx] += 1
     
     column_sum.fill(0)
@@ -81,7 +81,7 @@ def findNeighbors():
         list_tail[linear_idx] = pre + grain_count[i, j]       
 
     for i in range(n):
-        grid_idx = ti.floor(pos[i]/minX * grid_n, int)
+        grid_idx = ti.floor(pos[i]/maxX * grid_n, int)
         linear_idx = grid_idx[0] * grid_n + grid_idx[1]
         grain_location = ti.atomic_add(list_cur[linear_idx], 1)
         particle_id[grain_location] = i
@@ -92,27 +92,37 @@ def solveBoundaries():
     for i in range(n):
         if pos[i][1] <= 1:
             pos[i][1] = 1
-        if pos[i][1] >= minX - 1:
-            pos[i][1] = minX - 1
+        if pos[i][1] >= maxX - 1:
+            pos[i][1] = maxX - 1
         if (pos[i][0] <= 1): 
             pos[i][0] = 1
-        if (pos[i][0] >= minX - 1 ):
-            pos[i][0] = minX -1 
+        if (pos[i][0] >= maxX - 1 ):
+            pos[i][0] = maxX -1 
 
 @ti.func
 def applyViscosity(i, sdt):
-    #avgVel = vec3f(0, 0, 0)
     avgVel = vec3f(0, 0)
-    num = n
-    for j in range(n):			
-        avgVel += vel[j]
-		
-				
-    avgVel /= num
+    _count = 0
+
+    grid_idx = ti.floor(pos[i]/maxX * grid_n, int)
+    x_begin = max(grid_idx[0] - 1, 0)
+    x_end = min(grid_idx[0] + 2, grid_n)
+    y_begin = max(grid_idx[1] - 1, 0)
+    y_end = min(grid_idx[1] + 2, grid_n)  
+    for neigh_i, neigh_j in ti.ndrange((x_begin, x_end), (y_begin, y_end)):
+            neigh_linear_idx = neigh_i * grid_n + neigh_j
+            for p_idx in range(list_head[neigh_linear_idx],
+                            list_tail[neigh_linear_idx]):                    
+                j = particle_id[p_idx]
+                _dist = pos[i] - pos[j]
+                if _dist.norm() < h:			
+                    avgVel += vel[j]
+                    _count += 1
     
-    _delta = avgVel -  vel[i]
-    
-    vel[i] += viscosity * _delta
+    if _count > 0:                
+        avgVel /= _count        
+        _delta = avgVel -  vel[i]        
+        vel[i] += viscosity * _delta
 
 @ti.func
 def getDensityAndNormal(_norm: float, dist: ti.template()):
@@ -137,7 +147,7 @@ def solveFluid():
         _gradient = vec3f([0.0, 0.0])
         _pos = pos[i]
 
-        grid_idx = ti.floor(pos[i]/minX * grid_n, int)
+        grid_idx = ti.floor(pos[i]/maxX * grid_n, int)
 
         x_begin = max(grid_idx[0] - 1, 0)
         x_end = min(grid_idx[0] + 2, grid_n)
@@ -216,12 +226,12 @@ def update():
             pos[i] = prepos[i] + deltaV        
         vel[i] = deltaV / sdt
         
-        #applyViscosity(i, sdt)
+        applyViscosity(i, sdt)
    
 win_x = 640
 win_y = 640
 
-gui = ti.GUI('Taichi DEM', (win_x, win_y))
+gui = ti.GUI('pbf 2d', (win_x, win_y))
 
 step = 0
 init()
@@ -230,6 +240,6 @@ while gui.running:
     for s in range(numSteps):
         update()
     _pos = pos.to_numpy()
-    gui.circles(_pos/minX, radius=particleRadius_show)
+    gui.circles(_pos/maxX, radius=particleRadius_show)
     
     gui.show()
