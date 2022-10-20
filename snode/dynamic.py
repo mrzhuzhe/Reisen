@@ -21,11 +21,11 @@ def make_lists():
 @ti.kernel
 def read_lists():
     for i in range(5):
-        #for j in range(i):
-        #        ti.append(x.parent(), i, j * j)  # ti.append(pixel, i, j * j)
         for j in range(l[i]):
             print(i, x[i, j])
-
+    print(int(6.0*ti.random()))
+    print(int(6.0*ti.random()))
+    
 
 make_lists()
 read_lists()
