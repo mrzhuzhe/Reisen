@@ -26,3 +26,5 @@ python3 simple.py # compare to python3 simple-fp64.py
 2. https://github.com/matthias-research/pages/blob/master/tenMinutePhysics/contribs/PBFBoundary.html
 3. taichi fp64 https://docs.taichi-lang.org/docs/type
 4. other sph resources https://interactivecomputergraphics.github.io/physics-simulation/
+5. snodes https://docs.taichi-lang.org/docs/internal#data-structure-organization
+6. dynamic snode https://docs.taichi-lang.org/docs/sparse#dynamic-snode
