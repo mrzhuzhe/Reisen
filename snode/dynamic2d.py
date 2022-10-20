@@ -34,6 +34,6 @@ def read_lists():
             for k in range(l[i, j]):
                 print("x[i,j,k]", i, j, k, ":", x[i, j, k])
 
-ti.deactivate_all_snodes()  
+#ti.deactivate_all_snodes()  
 make_lists()
 read_lists()
