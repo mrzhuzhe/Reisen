@@ -22,7 +22,7 @@ particleDiameter = 2 * particleRadius
 restDensity = 1.0 / (particleDiameter * particleDiameter)
 # 2d poly6 (SPH based shallow water simulation
 
-viscosity = 0.3
+viscosity = 0.03
 h = kernelRadius 
 h2 = h * h
 _PI = math.pi
@@ -32,7 +32,6 @@ kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
 pos = ti.Vector.field(2, dtype=_fp, shape=n)
 prepos = ti.Vector.field(2, dtype=_fp, shape=n)
 vel = ti.Vector.field(2, dtype=_fp, shape=n)
-grads_j = ti.Vector.field(2, dtype=_fp, shape=n)
 
 @ti.func
 def findNeighbors():

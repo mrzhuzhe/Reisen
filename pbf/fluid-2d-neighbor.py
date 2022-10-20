@@ -31,7 +31,6 @@ kernelScale = 4.0 / (_PI * h2 * h2 * h2 * h2)
 pos = ti.Vector.field(2, dtype=_fp, shape=n)
 prepos = ti.Vector.field(2, dtype=_fp, shape=n)
 vel = ti.Vector.field(2, dtype=_fp, shape=n)
-grads = ti.Vector.field(2, dtype=_fp, shape=n)
 
 grid_size = 4.0
 grid_n = math.ceil(maxX / grid_size)

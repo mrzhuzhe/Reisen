@@ -13,8 +13,8 @@ sdt = dt / numSteps
 n = 10000
 
 maxX = 1
-maxZ = 1
-maxY = 1
+maxZ = maxX
+maxY = maxX
 particleRadius = 0.01
 maxVel = 0.5 * particleRadius
 kernelRadius = 3.0 * particleRadius
@@ -28,10 +28,8 @@ PI = 3.14
 kernelScale = 4.0 / (PI * h2 * h2 * h2 * h2);		
 
 pos = ti.Vector.field(3, dtype=_fp, shape=n)
-pos32 = ti.Vector.field(3, dtype=ti.f32, shape=n)
 prepos = ti.Vector.field(3, dtype=_fp, shape=n)
 vel = ti.Vector.field(3, dtype=_fp, shape=n)
-grads = ti.Vector.field(3, dtype=_fp, shape=n)
 
 eps = 1e-5
 grid_size = 0.05
