@@ -28,3 +28,16 @@ python3 simple.py # compare to python3 simple-fp64.py
 4. other sph resources https://interactivecomputergraphics.github.io/physics-simulation/
 5. snodes https://docs.taichi-lang.org/docs/internal#data-structure-organization
 6. dynamic snode https://docs.taichi-lang.org/docs/sparse#dynamic-snode
+
+
+# Roadmap
+
+1. compliant control 
+2. HPC MPI
+3. complier LLVM 
+4. c++ 11
+5. autodiff RL
+6. fluid fem sph dem
+7. geometry 
+8. optimize 
+9. matrix solver
