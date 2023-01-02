@@ -396,7 +396,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			for (var j = minJ; j < maxJ; j++)
 				f.m[j] = 0.0;
 
-			setObstacle(0.4, 0.5, true)
+			//setObstacle(0.4, 0.5, true)
 
 			scene.gravity = 0.0;
 			scene.showPressure = false;
@@ -523,16 +523,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				g = color[1];
 				b = color[2];
 
+				var p = 4 * (y * canvas.width + x)
+				/*
+				//debugger
 				for (var yi = y; yi < y + cy; yi++) {
 					var p = 4 * (yi * canvas.width + x)
-
+					
 					for (var xi = 0; xi < cx; xi++) {
+						///*
+						
 						id.data[p++] = r;
 						id.data[p++] = g;
 						id.data[p++] = b;
 						id.data[p++] = 255;
+											
 					}
 				}
+				*/
+				id.data[p] = r;
+				id.data[p+1] = g;
+				id.data[p+2] = b;
+				id.data[p+3] = 255;
 			}
 		}
 
