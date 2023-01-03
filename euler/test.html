@@ -374,7 +374,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			scene.showVelocities = false;
 		}
 		else if (sceneNr == 1 || sceneNr == 3) { // vortex shedding
-
+			
 			var inVel = 2.0;
 			for (var i = 0; i < f.numX; i++) {
 				for (var j = 0; j < f.numY; j++) {
@@ -392,6 +392,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			var pipeH = 0.1 * f.numY;
 			var minJ = Math.floor(0.5 * f.numY - 0.5*pipeH);
 			var maxJ = Math.floor(0.5 * f.numY + 0.5*pipeH);
+
+			console.log(minJ, maxJ);
 
 			for (var j = minJ; j < maxJ; j++)
 				f.m[j] = 0.0;
@@ -490,7 +492,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		for (var i = 0; i < f.numX; i++) {
 			for (var j = 0; j < f.numY; j++) {
 
-				if (scene.showPressure) {
+				/*if (scene.showPressure) {
 					var p = f.p[i*n + j];
 					var s = f.m[i*n + j];
 					color = getSciColor(p, minP, maxP);
@@ -500,7 +502,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						color[2] = Math.max(0.0, color[2] - 255*s);
 					}
 				}
-				else if (scene.showSmoke) {
+				else 
+				*/
+				if (scene.showSmoke) {
 					var s = f.m[i*n + j];
 					color[0] = 255*s;
 					color[1] = 255*s;
@@ -508,12 +512,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 					if (scene.sceneNr == 2)
 						color = getSciColor(s, 0.0, 1.0);
 				}
+				/*
 				else if (f.s[i*n + j] == 0.0) {
 					color[0] = 0;
 					color[1] = 0;
 					color[2] = 0;
 				}
-
+				*/
 				var x = Math.floor(cX(i * h));
 				var y = Math.floor(cY((j+1) * h));
 				var cx = Math.floor(cScale * cellScale * h) + 1;
@@ -548,7 +553,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		}
 
 		c.putImageData(id, 0, 0);
-
+		/*
 		if (scene.showVelocities) {
 
 			c.strokeStyle = "#000000";	
@@ -647,6 +652,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			c.font = "16px Arial";
 			c.fillText(s, 10, 35);
 		}
+		*/
 	}
 
 	function setObstacle(x, y, reset) {
@@ -735,7 +741,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		drag(event.x, event.y);
 	});
 
-	canvas.addEventListener('touchstart', event => {
+	canvas.addEventListener('touchstart', event => {avgU
 		startDrag(event.touches[0].clientX, event.touches[0].clientY)
 	});
 

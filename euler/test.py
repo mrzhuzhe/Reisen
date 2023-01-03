@@ -1,3 +1,4 @@
+from matplotlib.pyplot import flag
 import taichi as ti
 import math
 
@@ -29,9 +30,11 @@ newV = ti.field(dtype=ti.f32, shape=(numX, numY))
 P = ti.field(dtype=ti.f32, shape=(numX, numY))
 S = ti.field(dtype=ti.f32, shape=(numX, numY))
 M = ti.field(dtype=ti.f32, shape=(numX, numY))
+M.fill(1)
 newM = ti.field(dtype=ti.f32, shape=(numX, numY)) 
 
-pixels = ti.field(dtype=float, shape=(c_w, c_h))
+pixels = ti.field(dtype=ti.f32, shape=(c_w, c_h))
+pixels.fill(1)
 
 U_FIELD = 0
 V_FIELD = 1
@@ -54,39 +57,51 @@ def avgV(i, j):
 	return (V[i-1, j] + U[i, j] + U[i-1, j+1] + U[i,j+1]) * 0.25
 
 @ti.func 
-def sampleField(x, y , field):
+def sampleField(x, y , field: int):
 	h1 = 1 / h
-	x = math.max(math.min(x, numX * h), h)
-	y = math.max(math.min(y, numY * h), h)
+	x = ti.max(ti.min(x, numX * h), h)
+	y = ti.max(ti.min(y, numY * h), h)
 	dx = 0
 	dy = 0
 	if field == U_FIELD:
-		f = U
+		#f = U
 		dy = h2
 	elif field == V_FIELD:
-		f = V
+		#f = V
 		dx = h2
 	elif field == S_FIELD:
-		f = M
+		#f = M
 		dx = h2 
 		dy = h2 
 
-	x0 = math.min(math.floor((x-dx)*h1), numX-1)
+	x0 = int(ti.min(ti.floor((x-dx)*h1), numX-1))
 	tx = ((x - dx) - x0*h) * h1
-	x1 = math.min(x0 +1, numX-1)
+	x1 = int(ti.min(x0 +1, numX-1))
 
-	y0 = math.min(math.floor((y - dy)*h1), numY -1)
+	y0 = int(ti.min(ti.floor((y-dy)*h1), numY-1))
 	ty = ((y - dy)- y0*h)*h1
-	y1 = math.min(y0+1, numY-1)
+	y1 = int(ti.min(y0+1, numY-1))
 
 	sx = 1 - tx 
 	sy = 1 - ty
-
-	return sx*sy*f[x0, y0] + tx*sy*f[x1, y0] + tx*ty*f[x1, y1] + sx*ty*f[x0, y1]
+	
+	#print(x0, x1, y0, y1)
+	
+	_coeff = ti.Vector([sx*sy, tx*sy, tx*ty, sx*ty])
+	#print(sx*sy, tx*sy, tx*ty, sx*ty)
+	_vars = ti.Vector([0, 0 , 0, 0])
+	if field == U_FIELD:
+		_vars = ti.Vector([U[x0, y0], U[x1, y0], U[x1, y1], U[x0, y1]])		
+	elif field == V_FIELD:
+		_vars = ti.Vector([V[x0, y0], V[x1, y0], V[x1, y1], V[x0, y1]])		
+	elif field == S_FIELD:		
+		_vars = ti.Vector([M[x0, y0], M[x1, y0], M[x1, y1], M[x0, y1]])	
+		
+	return _coeff.dot(_vars)
 
 # external force	
 @ti.kernel
-def integrate(dt, gravity):    
+def integrate(dt: float, gravity: float):    
 	for i, j in ti.ndrange(numX, numY-1):
 		if S[i, j] != 0 and S[i, j-1] !=0:
 			V[i, j] += gravity * dt
@@ -94,9 +109,9 @@ def integrate(dt, gravity):
 
 # project
 @ti.kernel
-def solveIncompressibility(substep, dt):
+def solveIncompressibility(substep: int, dt: float):
 	cp = density * h / dt
-	for i, j in ti.ndrange(numX-1, numY-1):
+	for i, j in ti.ndrange((1, numX-1), (1, numY-1)):
 		if S[i, j] == 0:
 			continue			
 		Sx0 = S[i-1, j]
@@ -127,12 +142,12 @@ def extrapolate():
 		V[numX-1, j] = U[numX-2, j]
 
 @ti.kernel
-def advectVel(dt):
+def advectVel(dt: float):
 	for i, j in ti.ndrange(numX, numY):
 		newU[i, j] = U[i, j]
 		newV[i, j] = V[i, j]
 
-	for i, j in ti.ndrange(numX, numY):
+	for i, j in ti.ndrange((1, numX), (1, numY)):
 		if S[i, j] != 0 and S[i-1, j] != 0 and j < numY -1 :
 			x = i * h
 			y = j * h + h2
@@ -156,14 +171,15 @@ def advectVel(dt):
 		U[i, j] = newU[i, j]
 		V[i, j] = newV[i, j]
 
-def advectSmoke(dt):
+@ti.kernel
+def advectSmoke(dt: float):
 	for i, j in ti.ndrange(numX, numY):
 		newM[i, j] = M[i, j]
 
-	for i, j in ti.ndrange(numX, numY):
+	for i, j in ti.ndrange((1, numX), (1, numY)):
 		if S[i, j] != 0:
-			_u = U[i, j] + U[i+1, j] * 0.5
-			_v = V[i, j] + V[i, j+1] * 0.5
+			_u = (U[i, j] + U[i+1, j]) * 0.5
+			_v = (V[i, j] + V[i, j+1]) * 0.5
 			x = i * h + h2 - dt * _u 
 			y = j * h + h2 - dt * _v 
 			newM[i, j] = sampleField(x, y, S_FIELD)
@@ -175,12 +191,12 @@ def advectSmoke(dt):
 def draw():	
 	for i, j in ti.ndrange(numX, numY):
 		_s = M[i, j]			
-		#x = math.floor(cX(i * h))
+		#x = ti.floor(cX(i * h))
 		x = ti.floor(cX(i * h))
-		#y = math.floor(cY((j+1) * h))
+		#y = ti.floor(cY((j+1) * h))
 		y = ti.floor(cY((j+1) * h))
-		#cx = math.floor(scale * h) + 1
-		#cy = math.floor(scale * h) + 1
+		#cx = ti.floor(scale * h) + 1
+		#cy = ti.floor(scale * h) + 1
 		#p = 4 * (y * c_w + x)
 		pixels[int(x), int(y)] = 255*_s
 			
@@ -203,16 +219,21 @@ def init():
 	maxJ = ti.floor(0.5 * numY + 0.5*pipeH)
 
 	for j in range(int(minJ), int(maxJ)):
-		M[0, j] = 1.0
+		M[0, j] = 0.0
 	
 
     #setObstacle(0.4, 0.5, true)
 
     #pass
 
+def resetP():
+	for i, j in ti.ndrange(numX, numY):
+		P[i, j] = 0
+
 def update():
-    integrate(dt, gravity)
-	#P.fill(0)
+	integrate(dt, gravity)
+	#resetP()
+	P.fill(0)
 	for substep in range(numSteps):
 		solveIncompressibility(substep, dt)
 
@@ -225,10 +246,7 @@ gui = ti.GUI('langrange-2D', (c_w, c_h))
 init()
 
 while gui.running:
-    #for s in range(numSteps):
 	update()
-    #_pos = pos.to_numpy()
-    #gui.circles(_pos/minX, radius=particleRadius_show)
 	draw()
 	gui.set_image(pixels)
 	gui.show()
