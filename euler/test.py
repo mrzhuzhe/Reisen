@@ -63,6 +63,7 @@ def sampleField(x, y , field: int):
 	y = ti.max(ti.min(y, numY * h), h)
 	dx = 0
 	dy = 0
+	
 	if field == U_FIELD:
 		#f = U
 		dy = h2
@@ -98,6 +99,56 @@ def sampleField(x, y , field: int):
 		_vars = ti.Vector([M[x0, y0], M[x1, y0], M[x1, y1], M[x0, y1]])	
 		
 	return _coeff.dot(_vars)
+
+@ti.func 
+def sampleFieldM(x, y , field: int):
+	h1 = 1 / h
+	x = ti.max(ti.min(x, numX * h), h)
+	y = ti.max(ti.min(y, numY * h), h)
+	dx = 0
+	dy = 0
+	if field == U_FIELD:
+		#f = U
+		dy = h2
+	elif field == V_FIELD:
+		#f = V
+		dx = h2
+	elif field == S_FIELD:
+		#f = M
+		dx = h2 
+		dy = h2 
+
+	x0 = int(ti.min(ti.floor((x-dx)*h1), numX-1))
+	tx = ((x - dx) - x0*h) * h1
+	x1 = int(ti.min(x0 +1, numX-1))
+
+	y0 = int(ti.min(ti.floor((y-dy)*h1), numY-1))
+	ty = ((y - dy)- y0*h)*h1
+	y1 = int(ti.min(y0+1, numY-1))
+
+	sx = 1 - tx 
+	sy = 1 - ty
+
+
+	#print(S_FIELD == field)
+
+	"""
+	_vars = 0
+	if field == U_FIELD:
+		#print("is me U_FIELD ????")
+		_vars = sx*sy * U[x0, y0] + tx*sy * U[x1, y0] + tx*ty * U[x1, y1] + sx*ty * U[x0, y1]	
+	elif field == V_FIELD:
+		#print("is me V_FIELD ????")
+		_vars = sx*sy * V[x0, y0] + tx*sy * V[x1, y0] + tx*ty * V[x1, y1] + sx*ty * V[x0, y1]
+	elif field == S_FIELD:		
+		#print("is me???")
+		_vars = sx*sy * M[x0, y0] + tx*sy * M[x1, y0] + tx*ty * M[x1, y1] + sx*ty * M[x0, y1]
+		
+	return _vars 
+	"""
+	return sx*sy * M[x0, y0] + tx*sy * M[x1, y0] + tx*ty * M[x1, y1] + sx*ty * M[x0, y1]
+	
+
 
 # external force	
 @ti.kernel
@@ -176,13 +227,15 @@ def advectSmoke(dt: float):
 	for i, j in ti.ndrange(numX, numY):
 		newM[i, j] = M[i, j]
 
-	for i, j in ti.ndrange((1, numX), (1, numY)):
+	for i, j in ti.ndrange((1, numX-1), (1, numY-1)):
 		if S[i, j] != 0:
 			_u = (U[i, j] + U[i+1, j]) * 0.5
 			_v = (V[i, j] + V[i, j+1]) * 0.5
 			x = i * h + h2 - dt * _u 
 			y = j * h + h2 - dt * _v 
-			newM[i, j] = sampleField(x, y, S_FIELD)
+			#newM[i, j] = sampleField(x, y, S_FIELD)
+			newM[i, j] = sampleFieldM(x, y, S_FIELD)
+
 	for i, j in ti.ndrange(numX, numY):
 		M[i, j] = newM[i, j]
 
@@ -226,13 +279,8 @@ def init():
 
     #pass
 
-def resetP():
-	for i, j in ti.ndrange(numX, numY):
-		P[i, j] = 0
-
 def update():
 	integrate(dt, gravity)
-	#resetP()
 	P.fill(0)
 	for substep in range(numSteps):
 		solveIncompressibility(substep, dt)

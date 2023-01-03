@@ -297,13 +297,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 		simulate(dt, gravity, numIters) {
 
-			this.integrate(dt, gravity);
+			//this.integrate(dt, gravity);
 
 			this.p.fill(0.0);
 			this.solveIncompressibility(numIters, dt);
 
-			this.extrapolate();
-			this.advectVel(dt);
+			//this.extrapolate();
+			//this.advectVel(dt);
 			this.advectSmoke(dt);
 		}
 	}
