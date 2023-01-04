@@ -131,12 +131,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						if (this.s[i*n + j] == 0.0)
 							continue;
 
-						var s = this.s[i*n + j];
+						//var s = this.s[i*n + j];
 						var sx0 = this.s[(i-1)*n + j];
 						var sx1 = this.s[(i+1)*n + j];
 						var sy0 = this.s[i*n + j-1];
 						var sy1 = this.s[i*n + j+1];
 						var s = sx0 + sx1 + sy0 + sy1;
+						//console.log(s)
 						if (s == 0.0)
 							continue;
 
@@ -151,6 +152,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						this.u[(i+1)*n + j] += sx1 * p;
 						this.v[i*n + j] -= sy0 * p;
 						this.v[i*n + j+1] += sy1 * p;
+						console.log(i, j, this.u[i*n + j], this.u[(i+1)*n + j], this.v[i*n + j], this.v[i*n + j+1])
 					}
 				}
 			}
@@ -284,8 +286,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						var v = (this.v[i*n + j] + this.v[i*n + j+1]) * 0.5;
 						var x = i*h + h2 - dt*u;
 						var y = j*h + h2 - dt*v;
-
+						
 						this.newM[i*n + j] = this.sampleField(x,y, S_FIELD);
+						/*
+						if (this.newM[i*n + j] < 0.99) {
+							console.log(i, j, this.newM[i*n + j])
+						}
+						*/
  					}
 				}	 
 			}
@@ -375,7 +382,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		}
 		else if (sceneNr == 1 || sceneNr == 3) { // vortex shedding
 			
-			var inVel = 2.0;
+			var inVel = 20.0;
 			for (var i = 0; i < f.numX; i++) {
 				for (var j = 0; j < f.numY; j++) {
 					var s = 1.0;	// fluid
@@ -785,7 +792,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 	function update() {
 		simulate();
 		draw();
-		requestAnimationFrame(update);
+		//requestAnimationFrame(update);
 	}
 	
 	setupScene(1);
