@@ -9,6 +9,10 @@ sim_w = 1
 sim_h = 1
 scale = c_w / sim_w
 
+obstacleX = 0
+obstacleY = 0
+obstacleRadius = 0.15
+
 #gravity = -9.81
 gravity = 0
 dt = 1.0 / 60.0
@@ -150,7 +154,7 @@ def solveIncompressibility(substep: int, dt: float):
 			continue
 		
 		_div = U[i+1, j] - U[i, j] + V[i, j+1] - V[i, j] 
-		_p = - _div / _s
+		_p = -_div / _s
 		#if _div != 0 :	print(_div)
 		#_p = _p * 1.9
 		#print(_p)
@@ -242,11 +246,42 @@ def draw():
 		#p = 4 * (y * c_w + x)
 		#pixels[int(x), int(y)] = 255*_s
 		pixels[int(x), int(y)] = _s
+
+@ti.func		
+def setObstacle(x, y, reset):	
+	vx = 0.0
+	vy = 0.0
+
+	if (not reset):
+		vx = (x - obstacleX) / dt
+		vy = (y - obstacleY) / dt
+	
+
+	obstacleX = x
+	obstacleY = y
+	r = obstacleRadius
+
+	cd = ti.sqrt(2) * h
+
+	for i, j in ti.ndrange((1, numX-2), (1, numY-2)):
+		S[i, j] = 1.0
+
+		dx = (i + 0.5) * h - x
+		dy = (j + 0.5) * h - y
+
+		if (dx * dx + dy * dy < r * r):
+			S[i, j] = 0.0			
+			M[i, j] = 1.0
+			U[i, j] = vx
+			U[i+1, j] = vx
+			V[i, j] = vy
+			V[i, j+1] = vy
 			
+	
 
 @ti.kernel
 def init():
-	inVel = 2.0
+	inVel = 4.0
 	for i, j in ti.ndrange(numX, numY):
 		_s = 1.0	
 		if (i == 0 | j == 0 | j == numY-1):
@@ -265,7 +300,7 @@ def init():
 		M[0, j] = 0.0
 	
 
-    #setObstacle(0.4, 0.5, true)
+	setObstacle(0.4, 0.5, True)
 
     #pass
 

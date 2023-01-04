@@ -145,6 +145,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 							this.v[i*n + j+1] - this.v[i*n + j];
 
 						var p = -div / s;
+						//console.log(scene.overRelaxation)
 						p *= scene.overRelaxation;
 						this.p[i*n + j] += cp * p;
 
