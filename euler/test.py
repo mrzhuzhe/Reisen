@@ -246,7 +246,7 @@ def draw():
 
 @ti.kernel
 def init():
-	inVel = 2.0
+	inVel = 20.0
 	for i, j in ti.ndrange(numX, numY):
 		_s = 1.0	
 		if (i == 0 | j == 0 | j == numY-1):
