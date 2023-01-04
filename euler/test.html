@@ -152,7 +152,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						this.u[(i+1)*n + j] += sx1 * p;
 						this.v[i*n + j] -= sy0 * p;
 						this.v[i*n + j+1] += sy1 * p;
-						console.log(i, j, this.u[i*n + j], this.u[(i+1)*n + j], this.v[i*n + j], this.v[i*n + j+1])
+						//console.log(i, j, this.u[i*n + j], this.u[(i+1)*n + j], this.v[i*n + j], this.v[i*n + j+1])
 					}
 				}
 			}
@@ -250,6 +250,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						y = y - dt*v;
 						u = this.sampleField(x,y, U_FIELD);
 						this.newU[i*n + j] = u;
+						//console.log(u)
 					}
 					// v component
 					if (this.s[i*n + j] != 0.0 && this.s[i*n + j-1] != 0.0 && i < this.numX - 1) {
@@ -262,6 +263,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						y = y - dt*v;
 						v = this.sampleField(x,y, V_FIELD);
 						this.newV[i*n + j] = v;
+						//debugger
+						//console.log(v)
 					}
 				}	 
 			}
@@ -304,13 +307,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 		simulate(dt, gravity, numIters) {
 
-			//this.integrate(dt, gravity);
+			this.integrate(dt, gravity);
 
 			this.p.fill(0.0);
 			this.solveIncompressibility(numIters, dt);
 
-			//this.extrapolate();
-			//this.advectVel(dt);
+			this.extrapolate();
+			this.advectVel(dt);
 			this.advectSmoke(dt);
 		}
 	}
@@ -792,7 +795,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 	function update() {
 		simulate();
 		draw();
-		//requestAnimationFrame(update);
+		requestAnimationFrame(update);
 	}
 	
 	setupScene(1);
