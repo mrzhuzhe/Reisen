@@ -307,7 +307,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 		simulate(dt, gravity, numIters) {
 
-			this.integrate(dt, gravity);
+			//this.integrate(dt, gravity);
 
 			this.p.fill(0.0);
 			this.solveIncompressibility(numIters, dt);
@@ -361,6 +361,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		var numX = Math.floor(domainWidth / h);
 		var numY = Math.floor(domainHeight / h);
 
+		console.log(numX, numY);
+
 		var density = 1000.0;
 
 		f = scene.fluid = new Fluid(density, numX, numY, h);
@@ -385,7 +387,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		}
 		else if (sceneNr == 1 || sceneNr == 3) { // vortex shedding
 			
-			var inVel = 20.0;
+			var inVel = 2.0;
 			for (var i = 0; i < f.numX; i++) {
 				for (var j = 0; j < f.numY; j++) {
 					var s = 1.0;	// fluid
@@ -408,7 +410,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			for (var j = minJ; j < maxJ; j++)
 				f.m[j] = 0.0;
 
-			//setObstacle(0.4, 0.5, true)
+			setObstacle(0.4, 0.5, true)
 
 			scene.gravity = 0.0;
 			scene.showPressure = false;
@@ -502,7 +504,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		for (var i = 0; i < f.numX; i++) {
 			for (var j = 0; j < f.numY; j++) {
 
-				/*if (scene.showPressure) {
+				if (scene.showPressure) {
 					var p = f.p[i*n + j];
 					var s = f.m[i*n + j];
 					color = getSciColor(p, minP, maxP);
@@ -512,9 +514,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						color[2] = Math.max(0.0, color[2] - 255*s);
 					}
 				}
-				else 
-				*/
-				if (scene.showSmoke) {
+				else if (scene.showSmoke) {
 					var s = f.m[i*n + j];
 					color[0] = 255*s;
 					color[1] = 255*s;
@@ -522,13 +522,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 					if (scene.sceneNr == 2)
 						color = getSciColor(s, 0.0, 1.0);
 				}
-				/*
+				
 				else if (f.s[i*n + j] == 0.0) {
 					color[0] = 0;
 					color[1] = 0;
 					color[2] = 0;
 				}
-				*/
+				
 				var x = Math.floor(cX(i * h));
 				var y = Math.floor(cY((j+1) * h));
 				var cx = Math.floor(cScale * cellScale * h) + 1;
@@ -539,7 +539,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				b = color[2];
 
 				var p = 4 * (y * canvas.width + x)
-				/*
+				
 				//debugger
 				for (var yi = y; yi < y + cy; yi++) {
 					var p = 4 * (yi * canvas.width + x)
@@ -554,16 +554,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 											
 					}
 				}
-				*/
+				/*
 				id.data[p] = r;
 				id.data[p+1] = g;
 				id.data[p+2] = b;
 				id.data[p+3] = 255;
+				*/
 			}
 		}
 
 		c.putImageData(id, 0, 0);
-		/*
+		
 		if (scene.showVelocities) {
 
 			c.strokeStyle = "#000000";	
@@ -662,7 +663,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			c.font = "16px Arial";
 			c.fillText(s, 10, 35);
 		}
-		*/
+		
 	}
 
 	function setObstacle(x, y, reset) {

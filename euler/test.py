@@ -19,8 +19,8 @@ density = 1000
 h = 1 / res
 h2 = 0.5 * h
 
-numX = 200
-numY = 200
+numX = res
+numY = res
 
 U = ti.field(dtype=ti.f32, shape=(numX, numY))
 V = ti.field(dtype=ti.f32, shape=(numX, numY))
@@ -170,8 +170,8 @@ def extrapolate():
 		U[i, numY-1] = U[i, numY-2] 
 
 	for j in range(numY):
-		V[0, j] = U[1, j]
-		V[numX-1, j] = U[numX-2, j]
+		V[0, j] = V[1, j]
+		V[numX-1, j] = V[numX-2, j]
 
 @ti.kernel
 def advectVel(dt: float):
@@ -246,7 +246,7 @@ def draw():
 
 @ti.kernel
 def init():
-	inVel = 20.0
+	inVel = 2.0
 	for i, j in ti.ndrange(numX, numY):
 		_s = 1.0	
 		if (i == 0 | j == 0 | j == numY-1):
@@ -270,7 +270,7 @@ def init():
     #pass
 
 def update():
-	integrate(dt, gravity)
+	#integrate(dt, gravity)
 	P.fill(0)
 	for substep in range(numSteps):
 		solveIncompressibility(substep, dt)
