@@ -15,9 +15,9 @@ obstacleRadius = 0.1
 
 #gravity = -9.81
 gravity = 0
-dt = 1.0 / 60.0
+dt = 1.0 / 120.0
 #dt = 1.0 / 5.0
-numSteps = 40
+numSteps = 100
 radius = 0.15
 res = 200
 density = 1000
@@ -31,8 +31,8 @@ U = ti.field(dtype=ti.f32, shape=(numX, numY))
 V = ti.field(dtype=ti.f32, shape=(numX, numY))
 newU = ti.field(dtype=ti.f32, shape=(numX, numY))
 newV = ti.field(dtype=ti.f32, shape=(numX, numY))
-P = ti.field(dtype=ti.f32, shape=(numX, numY))
-S = ti.field(dtype=ti.f32, shape=(numX, numY))
+P = ti.field(dtype=ti.f32, shape=(numX, numY)) # use to show presure
+S = ti.field(dtype=ti.f32, shape=(numX, numY)) # 1 for fluid 0 for solid
 M = ti.field(dtype=ti.f32, shape=(numX, numY))
 M.fill(1)
 newM = ti.field(dtype=ti.f32, shape=(numX, numY)) 
@@ -262,7 +262,7 @@ def setObstacle(x, y, reset):
 	obstacleY = y
 	r = obstacleRadius
 
-	cd = ti.sqrt(2) * h
+	#cd = ti.sqrt(2) * h
 
 	for i, j in ti.ndrange((1, numX-2), (1, numY-2)):
 		S[i, j] = 1.0
@@ -282,11 +282,13 @@ def setObstacle(x, y, reset):
 
 @ti.kernel
 def init():
-	inVel = 4.0
+	inVel = 2.0
 	for i, j in ti.ndrange(numX, numY):
-		_s = 1.0	
-		if (i == 0 | j == 0 | j == numY-1):
-			_s = 0.0
+		_s = 1.0	# fluid
+		if (i == 0 or j == 0 or j == numY-1
+		#or i > numX-150
+		):
+			_s = 0.0	# solid
 		S[i, j] = _s
 
 		if (i == 1):
@@ -306,7 +308,7 @@ def init():
     #pass
 
 def update():
-	#integrate(dt, gravity)
+	integrate(dt, gravity)
 	P.fill(0)
 	for substep in range(numSteps):
 		solveIncompressibility(substep, dt)
