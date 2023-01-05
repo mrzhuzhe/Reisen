@@ -100,6 +100,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			this.fNumX = Math.floor(width / spacing) + 1;
 			this.fNumY = Math.floor(height / spacing) + 1;
 			this.h = Math.max(width / this.fNumX, height / this.fNumY);
+			console.log("spacing", this.h, height, spacing)
 			this.fInvSpacing = 1.0 / this.h;
 			this.fNumCells = this.fNumX * this.fNumY;
 
@@ -656,8 +657,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				this.transferVelocities(false, flipRatio);
 			}
 
-			this.updateParticleColors();
-			this.updateCellColors();
+			//this.updateParticleColors();
+			//this.updateCellColors();
 
 		}
 	}
@@ -715,10 +716,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		var dx = 2.0 * r;
 		var dy = Math.sqrt(3.0) / 2.0 * dx;
 
- 		var numX = Math.floor((relWaterWidth * tankWidth - 2.0 * h - 2.0 * r) / dx);
-		var numY = Math.floor((relWaterHeight * tankHeight - 2.0 * h - 2.0 * r) / dy);
-		var maxParticles = numX * numY;		
+ 		//var numX = Math.floor((relWaterWidth * tankWidth - 2.0 * h - 2.0 * r) / dx);
+		//var numY = Math.floor((relWaterHeight * tankHeight - 2.0 * h - 2.0 * r) / dy);
+		
+		numX = 50
+		numY = 50
 
+		var maxParticles = numX * numY;		
+		console.log(relWaterWidth * tankWidth, numX, numY)
 		// create fluid
 
 		f = scene.fluid = new FlipFluid(density, tankWidth, tankHeight, h, r, maxParticles);
@@ -735,6 +740,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		}
 
 		// setup grid cells for tank
+		console.log(numX, numY, f.fNumX, f.fNumY)
 
 		var n = f.fNumY;
 
