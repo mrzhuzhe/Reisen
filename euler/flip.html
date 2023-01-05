@@ -97,8 +97,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			// fluid
 
 			this.density = density;
-			this.fNumX = Math.floor(width / spacing) + 1;
-			this.fNumY = Math.floor(height / spacing) + 1;
+			//this.fNumX = Math.floor(width / spacing) + 1;
+			//this.fNumY = Math.floor(height / spacing) + 1;
+			this.fNumX = 100
+			this.fNumY = 100
+
 			this.h = Math.max(width / this.fNumX, height / this.fNumY);
 			console.log("spacing", this.h, height, spacing)
 			this.fInvSpacing = 1.0 / this.h;
@@ -130,8 +133,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 			this.particleRadius = particleRadius;
 			this.pInvSpacing = 1.0 / (2.2 * particleRadius);
+
+			console.log("this.pInvSpacing", this.pInvSpacing, width, height)
+			
 			this.pNumX = Math.floor(width * this.pInvSpacing) + 1;
 			this.pNumY = Math.floor(height * this.pInvSpacing) + 1;
+
+			console.log("this.pNumX", this.pNumX, this.pNumY)
+
 			this.pNumCells = this.pNumX * this.pNumY;
 
 			this.numCellParticles = new Int32Array(this.pNumCells);
@@ -713,6 +722,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		// compute number of particles
 
 		var r = 0.3 * h;	// particle radius w.r.t. cell size
+		console.log("r", r)
 		var dx = 2.0 * r;
 		var dy = Math.sqrt(3.0) / 2.0 * dx;
 
