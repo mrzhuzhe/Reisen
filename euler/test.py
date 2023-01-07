@@ -1,5 +1,6 @@
 import taichi as ti
-import math
+# This implement shall be optimize
+#  https://github.com/JerryYan97/Taichi_HW1_EulerianFluid/blob/master/main.py
 
 ti.init(arch=ti.gpu)
 

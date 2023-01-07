@@ -139,6 +139,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			this.pNumX = Math.floor(width * this.pInvSpacing) + 1;
 			this.pNumY = Math.floor(height * this.pInvSpacing) + 1;
 
+			//this.pNumX = 50
+			//this.pNumY = 50
 			console.log("this.pNumX", this.pNumX, this.pNumY)
 
 			this.pNumCells = this.pNumX * this.pNumY;
@@ -420,91 +422,108 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				}
 			}
 
-			for (var component = 0; component < 2; component++) {
+			//for (var component = 0; component < 2; component++) {
 
-				var dx = component == 0 ? 0.0 : h2;
-				var dy = component == 0 ? h2 : 0.0;
-	
-				var f = component == 0 ? this.u : this.v;
-				var prevF = component == 0 ? this.prevU : this.prevV;
-				var d = component == 0 ? this.du : this.dv;
+				//var dx = component == 0 ? 0.0 : h2;
+				//var dy = component == 0 ? h2 : 0.0;
+			dx = 0
+			dy = 0
+			/*
+			var f = component == 0 ? this.u : this.v;
+			var prevF = component == 0 ? this.prevU : this.prevV;
+			var d = component == 0 ? this.du : this.dv;
+			*/
+			for (var i = 0; i < this.numParticles; i++) {
+				var x = this.particlePos[2 * i];
+				var y = this.particlePos[2 * i + 1];
 
-				for (var i = 0; i < this.numParticles; i++) {
-					var x = this.particlePos[2 * i];
-					var y = this.particlePos[2 * i + 1];
+				x = clamp(x, h, (this.fNumX - 1) * h);
+				y = clamp(y, h, (this.fNumY - 1) * h);
 
-					x = clamp(x, h, (this.fNumX - 1) * h);
-					y = clamp(y, h, (this.fNumY - 1) * h);
+				var x0 = Math.min(Math.floor((x - dx) * h1), this.fNumX - 2);
+				var tx = ((x - dx) - x0 * h) * h1;
+				var x1 = Math.min(x0 + 1, this.fNumX-2);
+				
+				var y0 = Math.min(Math.floor((y-dy)*h1), this.fNumY-2);
+				var ty = ((y - dy) - y0*h) * h1;
+				var y1 = Math.min(y0 + 1, this.fNumY-2);
 
-					var x0 = Math.min(Math.floor((x - dx) * h1), this.fNumX - 2);
-					var tx = ((x - dx) - x0 * h) * h1;
-					var x1 = Math.min(x0 + 1, this.fNumX-2);
-					
-					var y0 = Math.min(Math.floor((y-dy)*h1), this.fNumY-2);
-					var ty = ((y - dy) - y0*h) * h1;
-					var y1 = Math.min(y0 + 1, this.fNumY-2);
+				var sx = 1.0 - tx;
+				var sy = 1.0 - ty;
 
-					var sx = 1.0 - tx;
-					var sy = 1.0 - ty;
+				var d0 = sx*sy;
+				var d1 = tx*sy;
+				var d2 = tx*ty;
+				var d3 = sx*ty;
 
-					var d0 = sx*sy;
-					var d1 = tx*sy;
-					var d2 = tx*ty;
-					var d3 = sx*ty;
-
-					var nr0 = x0*n + y0;
-					var nr1 = x1*n + y0;
-					var nr2 = x1*n + y1;
-					var nr3 = x0*n + y1;
-
-					if (toGrid) {
-						var pv = this.particleVel[2 * i + component];
-						f[nr0] += pv * d0;  d[nr0] += d0;
-						f[nr1] += pv * d1;  d[nr1] += d1;
-						f[nr2] += pv * d2;  d[nr2] += d2;
-						f[nr3] += pv * d3;  d[nr3] += d3;
-					}
-					else {
-						var offset = component == 0 ? n : 1;
-						var valid0 = this.cellType[nr0] != AIR_CELL || this.cellType[nr0 - offset] != AIR_CELL ? 1.0 : 0.0;
-						var valid1 = this.cellType[nr1] != AIR_CELL || this.cellType[nr1 - offset] != AIR_CELL ? 1.0 : 0.0;
-						var valid2 = this.cellType[nr2] != AIR_CELL || this.cellType[nr2 - offset] != AIR_CELL ? 1.0 : 0.0;
-						var valid3 = this.cellType[nr3] != AIR_CELL || this.cellType[nr3 - offset] != AIR_CELL ? 1.0 : 0.0;
-
-						var v = this.particleVel[2 * i + component];
-						var d = valid0 * d0 + valid1 * d1 + valid2 * d2 + valid3 * d3;
-
-						if (d > 0.0) {
-
-							var picV = (valid0 * d0 * f[nr0] + valid1 * d1 * f[nr1] + valid2 * d2 * f[nr2] + valid3 * d3 * f[nr3]) / d;
-							var corr = (valid0 * d0 * (f[nr0] - prevF[nr0]) + valid1 * d1 * (f[nr1] - prevF[nr1])
-								+ valid2 * d2 * (f[nr2] - prevF[nr2]) + valid3 * d3 * (f[nr3] - prevF[nr3])) / d;
-							var flipV = v + corr;
-
-							this.particleVel[2 * i + component] = (1.0 - flipRatio) * picV + flipRatio * flipV;
-						}
-					}
-				}
+				var nr0 = x0*n + y0;
+				var nr1 = x1*n + y0;
+				var nr2 = x1*n + y1;
+				var nr3 = x0*n + y1;
 
 				if (toGrid) {
-					for (var i = 0; i < f.length; i++) {
-						if (d[i] > 0.0)
-							f[i] /= d[i];
-					}
+					/*
+					var pv = this.particleVel[2 * i + component];
+					f[nr0] += pv * d0;  d[nr0] += d0;
+					f[nr1] += pv * d1;  d[nr1] += d1;
+					f[nr2] += pv * d2;  d[nr2] += d2;
+					f[nr3] += pv * d3;  d[nr3] += d3;
+					*/
+					var pvU = this.particleVel[2 * i]
+					this.u[nr0] += pvU * d0;  this.du[nr0] += d0;
+					this.u[nr1] += pvU * d1;  this.du[nr1] += d1;
+					this.u[nr2] += pvU * d2;  this.du[nr2] += d2;
+					this.u[nr3] += pvU * d3;  this.du[nr3] += d3;
 
-					// restore solid cells
+					var pvV = this.particleVel[2 * i + 1]
 
-					for (var i = 0; i < this.fNumX; i++) {
-						for (var j = 0; j < this.fNumY; j++) {
-							var solid = this.cellType[i * n + j] == SOLID_CELL;
-							if (solid || (i > 0 && this.cellType[(i - 1) * n + j] == SOLID_CELL))
-								this.u[i * n + j] = this.prevU[i * n + j];
-							if (solid || (j > 0 && this.cellType[i * n + j - 1] == SOLID_CELL))
-								this.v[i * n + j] = this.prevV[i * n + j];
-						}
+					this.v[nr0] += pvV * d0;  this.dv[nr0] += d0;
+					this.v[nr1] += pvV * d1;  this.dv[nr1] += d1;
+					this.v[nr2] += pvV * d2;  this.dv[nr2] += d2;
+					this.v[nr3] += pvV * d3;  this.dv[nr3] += d3;
+
+				}
+				else {
+					var offset = component == 0 ? n : 1;
+					var valid0 = this.cellType[nr0] != AIR_CELL || this.cellType[nr0 - offset] != AIR_CELL ? 1.0 : 0.0;
+					var valid1 = this.cellType[nr1] != AIR_CELL || this.cellType[nr1 - offset] != AIR_CELL ? 1.0 : 0.0;
+					var valid2 = this.cellType[nr2] != AIR_CELL || this.cellType[nr2 - offset] != AIR_CELL ? 1.0 : 0.0;
+					var valid3 = this.cellType[nr3] != AIR_CELL || this.cellType[nr3 - offset] != AIR_CELL ? 1.0 : 0.0;
+
+					var v = this.particleVel[2 * i + component];
+					var d = valid0 * d0 + valid1 * d1 + valid2 * d2 + valid3 * d3;
+
+					if (d > 0.0) {
+
+						var picV = (valid0 * d0 * f[nr0] + valid1 * d1 * f[nr1] + valid2 * d2 * f[nr2] + valid3 * d3 * f[nr3]) / d;
+						var corr = (valid0 * d0 * (f[nr0] - prevF[nr0]) + valid1 * d1 * (f[nr1] - prevF[nr1])
+							+ valid2 * d2 * (f[nr2] - prevF[nr2]) + valid3 * d3 * (f[nr3] - prevF[nr3])) / d;
+						var flipV = v + corr;
+
+						this.particleVel[2 * i + component] = (1.0 - flipRatio) * picV + flipRatio * flipV;
 					}
 				}
 			}
+
+			if (toGrid) {
+				for (var i = 0; i < f.length; i++) {
+					if (d[i] > 0.0)
+						f[i] /= d[i];
+				}
+
+				// restore solid cells
+
+				for (var i = 0; i < this.fNumX; i++) {
+					for (var j = 0; j < this.fNumY; j++) {
+						var solid = this.cellType[i * n + j] == SOLID_CELL;
+						if (solid || (i > 0 && this.cellType[(i - 1) * n + j] == SOLID_CELL))
+							this.u[i * n + j] = this.prevU[i * n + j];
+						if (solid || (j > 0 && this.cellType[i * n + j - 1] == SOLID_CELL))
+							this.v[i * n + j] = this.prevV[i * n + j];
+					}
+				}
+			}
+			//}
 		}
 
 		solveIncompressibility(numIters, dt, overRelaxation, compensateDrift = true) {
@@ -666,8 +685,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				this.transferVelocities(false, flipRatio);
 			}
 
-			//this.updateParticleColors();
-			//this.updateCellColors();
+			this.updateParticleColors();
+			this.updateCellColors();
 
 		}
 	}

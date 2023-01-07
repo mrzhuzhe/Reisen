@@ -245,7 +245,7 @@ def transferVelocities(toGrid, flipRatio):
     if toGrid:
         for i, j in ti.ndrange(fnumX, fnumY):
             preU[i, j] = U[i, j]
-            preV[i, j] = V[i, j]：
+            preV[i, j] = V[i, j]
         dU.fill(0)
         dV.fill(0)
         U.fill(0)
