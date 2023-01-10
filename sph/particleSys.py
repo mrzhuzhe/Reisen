@@ -1,3 +1,5 @@
+from re import X
+from pyparsing import col
 import taichi as ti
 import numpy as np
 from functools import reduce
@@ -109,9 +111,67 @@ class ParticleSystem:
             velocity = fluid["velocity"]
             density = fluid["density"]
             color = fluid["color"]
-            #self.add_cube(
+            self.add_cube(
+                object_id=obj_id,
+                lower_corner=start,
+                cube_size=(end-start)*scale,
+                velocity=velocity,
+                density=density,
+                is_dynamic=1,
+                color=color,
+                material=1
+            )
 
-            #)
+    def add_particles(self,
+        object_id: int,
+        new_particles_num: int,
+        new_particles_positions: ti.types.ndarray(),
+        new_particles_velocity: ti.types.ndarray(),
+        new_particles_density: ti.types.ndarray(),
+        new_particles_pressures: ti.types.ndarray(),
+        new_particles_materials: ti.types.ndarray(),
+        new_particles_is_dynamic: ti.types.ndarray(),
+        new_particles_color: ti.types.ndarray()
+    ):
+        self._add_particles(
+            object_id,
+            new_particles_num,
+            new_particles_positions,
+            new_particles_velocity,
+            new_particles_density,
+            new_particles_pressures,
+            new_particles_materials,
+            new_particles_is_dynamic,
+            new_particles_color
+        )
+
+    def _add_particles(self,
+        object_id: int,
+        new_particles_num: int,
+        new_particles_positions: ti.types.ndarray(),
+        new_particles_velocity: ti.types.ndarray(),
+        new_particles_density: ti.types.ndarray(),
+        new_particles_pressures: ti.types.ndarray(),
+        new_particles_materials: ti.types.ndarray(),
+        new_particles_is_dynamic: ti.types.ndarray(),
+        new_particles_color: ti.types.ndarray()
+    ):
+        for p in range(self.particle_num[None], self.particle_num[None] + new_particles_num):
+            v = ti.Vector.zero(float, 3)
+            x = ti.Vector.zero(float, 3)
+            for d in ti.static(range(3)):
+                v[d] = new_particles_velocity[p - self.particle_num[None], d]
+                x[d] = new_particles_positions[p - self.particle_num[None], d]
+            self.add_particles(
+                p, object_id, x, v,
+                new_particles_density[p - self.particle_num[None]],
+                new_particles_pressures[p - self.particle_num[None]],
+                new_particles_materials[p - self.particle_num[None]],
+                new_particles_is_dynamic[p - self.particle_num[None]],
+                ti.Vector([new_particles_color[p - self.particle_num[None], i] for i in range(3)])
+            )
+        self.particle_num[None] += new_particles_num        
+
 
     def compute_cube_particle_num(self, start, end):
         num_dim = []
@@ -125,4 +185,19 @@ class ParticleSystem:
         for i in range(3):
             num_dim.append(np.arrange(lower_corner[i], lower_corner[i]+cube_size[i], self.particleDiameter))
         num_new_particles = reduce(lambda x, y: x*y, [len(n) for n in num_dim])
-        pass
+
+        new_positions = np.array(np.meshgrid(*num_dim,
+                                             sparse=False,
+                                             indexing='ij'),
+                                 dtype=np.float32)
+
+        velocity_arr = np.full_like(new_positions, 0, dtype=np.float32)
+
+        material_arr = np.full_like(np.zeros(num_new_particles, dtype=np.int32), material)
+        is_dynamic_arr = np.full_like(np.zeros(num_new_particles, dtype=np.int32), is_dynamic)
+        color_arr = np.stack([np.full_like(np.zeros(num_new_particles, dtype=np.int32), c) for c in color], axis=1)
+        density_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), density if density is not None else 1000)
+        pressure_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), pressure if pressure is not None else 0)
+        self.add_particles(object_id, num_new_particles, new_positions, velocity_arr, density_arr, pressure_arr, material_arr, is_dynamic_arr, color_arr)
+   
+    
