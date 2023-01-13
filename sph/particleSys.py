@@ -1,4 +1,5 @@
 from re import X
+from joblib import parallel_backend
 from pyparsing import col
 import taichi as ti
 import numpy as np
@@ -162,7 +163,7 @@ class ParticleSystem:
             for d in ti.static(range(3)):
                 v[d] = new_particles_velocity[p - self.particle_num[None], d]
                 x[d] = new_particles_positions[p - self.particle_num[None], d]
-            self.add_particles(
+            self.add_particle(
                 p, object_id, x, v,
                 new_particles_density[p - self.particle_num[None]],
                 new_particles_pressures[p - self.particle_num[None]],
@@ -171,6 +172,39 @@ class ParticleSystem:
                 ti.Vector([new_particles_color[p - self.particle_num[None], i] for i in range(3)])
             )
         self.particle_num[None] += new_particles_num        
+
+    def initialize_particle_sysytem(self):
+        self.update_grid_id()
+        parallel_prefix_sum_inclusive_implace(self.grid_particles_num, self.grid_particles_num.shape[0])
+        self.count_sort()
+    
+    # ti.group https://docs.taichi-lang.org/docs/meta#dimensionality-independent-programming-using-grouped-indices
+    def update_grid_id(self):
+        for I in ti.grouped(self.grid_particles_num):
+            self.grid_particles_num[I] = 0
+        for I in ti.grouped(self.x):
+            grid_index = self.get_flatten_grid_index(self.x[I])
+            self.grid_ids[I] = grid_index
+            ti.atomic_add(self.grid_particles_num[grid_index], 1)
+        for I in ti.grouped(self.grid_particles_num):
+            self.grid_particles_num_temp[I] = self.grid_particles_num[I]
+
+    def count_sort(self):
+        pass
+
+    def add_particle(self, p, obj_id, x, v, density, pressure, material, is_dynamic, color):
+        self.object_id[p] = obj_id
+        self.x[p] = x
+        self.x_0[p] = x
+        self.v[p] = v
+        self.density[p] = density
+        self.m_V[p] = self.m_V0
+        self.m[p] = self.m_V0 * density
+        self.pressure[p] = pressure
+        self.material[p] = material
+        self.is_dynamic[p] = is_dynamic
+        self.color[p] = color
+
 
 
     def compute_cube_particle_num(self, start, end):
