@@ -1,6 +1,3 @@
-from re import X
-from joblib import parallel_backend
-from pyparsing import col
 import taichi as ti
 import numpy as np
 from functools import reduce
@@ -78,6 +75,9 @@ class ParticleSystem:
         self.color = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.is_dynamic = ti.field(dtype=float, shape=self.particle_max_num)
 
+        """
+        change this to new prefix sort 
+        """
         # buffer for sort
         self.object_id_buffer = ti.field(dtype=int, shape=self.particle_max_num)
         self.x_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
@@ -175,8 +175,9 @@ class ParticleSystem:
 
     def initialize_particle_sysytem(self):
         self.update_grid_id()
-        parallel_prefix_sum_inclusive_implace(self.grid_particles_num, self.grid_particles_num.shape[0])
-        self.count_sort()
+        # [TODO] change this part to grid search rather than cuda simt code
+        #parallel_prefix_sum_inclusive_implace(self.grid_particles_num, self.grid_particles_num.shape[0])
+        #self.count_sort()
     
     # ti.group https://docs.taichi-lang.org/docs/meta#dimensionality-independent-programming-using-grouped-indices
     def update_grid_id(self):
@@ -188,6 +189,11 @@ class ParticleSystem:
             ti.atomic_add(self.grid_particles_num[grid_index], 1)
         for I in ti.grouped(self.grid_particles_num):
             self.grid_particles_num_temp[I] = self.grid_particles_num[I]
+    
+    #   get grid id for each partical position
+    def get_flatten_grid_index(self, pos):
+        grid_index = (pos / self.grid_size).cast(int)
+        return grid_index[0] * self.grid_num[1] * self.grid_num[2] + grid_index[1] * self.grid_num[2] + grid_index[2]
 
     def count_sort(self):
         pass

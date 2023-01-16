@@ -41,3 +41,8 @@ python3 simple.py # compare to python3 simple-fp64.py
 7. geometry 
 8. optimize 
 9. matrix solver
+
+
+
+# TODO
+1. shfl_up_i32 https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/
