@@ -3,6 +3,10 @@ import numpy as np
 from functools import reduce
 
 _config = {
+    "Configuration": 
+	{
+		"particleRadius": 0.01,
+    },
     "FluidBlocks": [
 		{
             "objectId": 0,
@@ -45,8 +49,11 @@ class ParticleSystem:
         self.object_collection = dict()
         self.object_id_rigid_body = set()
 
+        # config 
+        self.particle_radius = _config["Configuration"]["particleRadius"]
+
         fluid_particle_num = 0
-        for fluid in _config.FluidBlocks:
+        for fluid in _config["FluidBlocks"]:
             particle_num = self.compute_cube_particle_num(fluid["start"], fluid["end"])
             fluid["particleNum"] = particle_num
             self.object_collection[fluid["objectId"]] = fluid
@@ -70,7 +77,7 @@ class ParticleSystem:
         self.m_V = ti.field(dtype=float, shape=self.particle_max_num)
         self.m = ti.field(dtype=float, shape=self.particle_max_num)
         self.density = ti.field(dtype=float, shape=self.particle_max_num)
-        self.presure = ti.field(dtype=float, shape=self.particle_max_num)
+        self.pressure = ti.field(dtype=float, shape=self.particle_max_num)
         self.material = ti.field(dtype=float, shape=self.particle_max_num)
         self.color = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.is_dynamic = ti.field(dtype=float, shape=self.particle_max_num)
@@ -102,7 +109,7 @@ class ParticleSystem:
 
         # initial particles
         # fluid blocks
-        fluid_blocks = _config.FluidBlocks
+        fluid_blocks = _config["FluidBlocks"]
         for fluid in fluid_blocks:
             obj_id = fluid["objectId"]
             offset = np.array(fluid["translation"])
@@ -145,7 +152,7 @@ class ParticleSystem:
             new_particles_is_dynamic,
             new_particles_color
         )
-
+    @ti.kernel
     def _add_particles(self,
         object_id: int,
         new_particles_num: int,
@@ -180,6 +187,7 @@ class ParticleSystem:
         #self.count_sort()
     
     # ti.group https://docs.taichi-lang.org/docs/meta#dimensionality-independent-programming-using-grouped-indices
+    @ti.kernel
     def update_grid_id(self):
         for I in ti.grouped(self.grid_particles_num):
             self.grid_particles_num[I] = 0
@@ -197,7 +205,8 @@ class ParticleSystem:
 
     def count_sort(self):
         pass
-
+    
+    @ti.func
     def add_particle(self, p, obj_id, x, v, density, pressure, material, is_dynamic, color):
         self.object_id[p] = obj_id
         self.x[p] = x
@@ -215,15 +224,15 @@ class ParticleSystem:
 
     def compute_cube_particle_num(self, start, end):
         num_dim = []
-        for i in range(3):
-            num_dim.append(np.arrange(start[i], end[i], self.particleDiameter))
-        return reduce(lambda x, y: x*y, [len(n) for n in 3])
+        for i in range(3):           
+            num_dim.append(np.arange(start[i], end[i], self.particleDiameter))
+        return reduce(lambda x, y: x*y, [len(n) for n in num_dim])
 
     def add_cube(self, object_id, lower_corner, cube_size, material, is_dynamic, color=(0, 0, 0),
     density=None, pressure=None, velocity=None):
         num_dim = []
         for i in range(3):
-            num_dim.append(np.arrange(lower_corner[i], lower_corner[i]+cube_size[i], self.particleDiameter))
+            num_dim.append(np.arange(lower_corner[i], lower_corner[i]+cube_size[i], self.particleDiameter))
         num_new_particles = reduce(lambda x, y: x*y, [len(n) for n in num_dim])
 
         new_positions = np.array(np.meshgrid(*num_dim,
@@ -231,6 +240,11 @@ class ParticleSystem:
                                              indexing='ij'),
                                  dtype=np.float32)
 
+        new_positions = new_positions.reshape(-1,
+                                              reduce(lambda x, y: x * y, list(new_positions.shape[1:]))).transpose()
+
+        #print("new_positions.shape", new_positions.shape)
+        
         velocity_arr = np.full_like(new_positions, 0, dtype=np.float32)
 
         material_arr = np.full_like(np.zeros(num_new_particles, dtype=np.int32), material)
