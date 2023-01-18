@@ -3,6 +3,9 @@ _config = {
 	{
 		"numberOfStepsPerRenderUpdate": 1,
 		"particleRadius": 0.01,
+		
+		"density0": 1000, 
+
         "domainEnd": [5.0, 3.0, 2.0]
     },
     "FluidBlocks": [

@@ -60,9 +60,9 @@ class ParticleSystem:
         self.m = ti.field(dtype=float, shape=self.particle_max_num)
         self.density = ti.field(dtype=float, shape=self.particle_max_num)
         self.pressure = ti.field(dtype=float, shape=self.particle_max_num)
-        self.material = ti.field(dtype=float, shape=self.particle_max_num)
+        self.material = ti.field(dtype=int, shape=self.particle_max_num)
         self.color = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.is_dynamic = ti.field(dtype=float, shape=self.particle_max_num)
+        self.is_dynamic = ti.field(dtype=int, shape=self.particle_max_num)
 
         """
         change this to new prefix sort 
@@ -237,7 +237,10 @@ class ParticleSystem:
         pressure_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), pressure if pressure is not None else 0)
         self.add_particles(object_id, num_new_particles, new_positions, velocity_arr, density_arr, pressure_arr, material_arr, is_dynamic_arr, color_arr)
    
-    def build_solver(self):
-        
+    def build_solver(self):        
         return WCSPHSolver(self)
+
+    @ti.func
+    def is_static_rigid_body(self, p):
+        return self.material[p] == self.material_solid and (not self.is_dynamic[p])
         
