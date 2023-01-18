@@ -1,8 +1,15 @@
 # Reisen
-PBD PBF
+
+> Test playground for Taichi project 
 
 ## 
 ```python 
+
+# /euler
+
+# euler grid smoke 
+python3 test.py
+
 # /pbf 
 
 # 3d position base fluid
@@ -15,6 +22,16 @@ python3 case_study.py
 
 # position base dynamic pendulum float point underflow bug reproduce
 python3 simple.py # compare to python3 simple-fp64.py
+
+# /snode
+
+# taichi bitmask and dynamic snode test , logic same as pdf
+
+#  /sph 
+
+# sph fluid rigid 
+python3 main.py 
+
 
 ```
 
@@ -33,16 +50,13 @@ python3 simple.py # compare to python3 simple-fp64.py
 # Roadmap
 
 1. compliant control 
-2. HPC MPI
-3. complier LLVM 
-4. c++ 11
-5. autodiff RL
-6. fluid fem sph dem
-7. geometry 
-8. optimize 
-9. matrix solver
+2. autodiff RL
+3. fluid fem sph dem
+4. geometry 
+5. optimize 
+6. matrix solver
 
 
 
-# TODO
-1. shfl_up_i32 https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/
+# TODOS
+1. In sph project original sph taichi use cuda instruction shfl_up_i32 https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/ 
