@@ -1,16 +1,19 @@
 import taichi as ti
 from particleSys import ParticleSystem
+from config import _config
+
+ti.init(arch=ti.gpu)
 
 
-ti.init(arch=ti.gpu, device_memory_fraction=0.5)
-
-_config = {
-    "domainEnd": [5.0, 3.0, 2.0],
-}
+    
 
 if __name__ == "__main__":
 
+    substeps = _config['Configuration']["numberOfStepsPerRenderUpdate"]
+
     ps = ParticleSystem()
+    solver = ps.build_solver()
+    solver.initialize()
 
     window = ti.ui.Window('SPH', (1024, 1024), show_window = True, vsync=False)
 
@@ -29,7 +32,7 @@ if __name__ == "__main__":
     particle_color = (1, 1, 1)
 
     # Draw the lines for domain
-    x_max, y_max, z_max = _config["domainEnd"]
+    x_max, y_max, z_max = _config["Configuration"]["domainEnd"]
     box_anchors = ti.Vector.field(3, dtype=ti.f32, shape = 8)
     box_anchors[0] = ti.Vector([0.0, 0.0, 0.0])
     box_anchors[1] = ti.Vector([0.0, y_max, 0.0])
@@ -49,7 +52,8 @@ if __name__ == "__main__":
     
     while window.running:
         #ps.copy_to_vis_buffer()
-       
+        for i in range(substeps):
+            solver.step()
         camera.track_user_inputs(window, movement_speed=movement_speed, hold_key=ti.ui.LMB)
         scene.set_camera(camera)
 

@@ -1,26 +1,8 @@
 import taichi as ti
 import numpy as np
 from functools import reduce
-
-_config = {
-    "Configuration": 
-	{
-		"particleRadius": 0.01,
-    },
-    "FluidBlocks": [
-		{
-            "objectId": 0,
-			"start": [0.1, 0.1, 0.5],
-			"end": [1.2, 2.9, 1.6],
-			"translation": [0.2, 0.0, 0.2],
-			"scale": [1, 1, 1],
-			"velocity": [0.0, -1.0, 0.0],
-			"density": 1000.0,
-			"color": [50, 100, 200]
-			
-		}
-	]
-}
+from config import _config
+from wcsph import WCSPHSolver
 
 @ti.data_oriented
 class ParticleSystem:
@@ -180,7 +162,7 @@ class ParticleSystem:
             )
         self.particle_num[None] += new_particles_num        
 
-    def initialize_particle_sysytem(self):
+    def initialize_particle_system(self):
         self.update_grid_id()
         # [TODO] change this part to grid search rather than cuda simt code
         #parallel_prefix_sum_inclusive_implace(self.grid_particles_num, self.grid_particles_num.shape[0])
@@ -199,6 +181,7 @@ class ParticleSystem:
             self.grid_particles_num_temp[I] = self.grid_particles_num[I]
     
     #   get grid id for each partical position
+    @ti.func
     def get_flatten_grid_index(self, pos):
         grid_index = (pos / self.grid_size).cast(int)
         return grid_index[0] * self.grid_num[1] * self.grid_num[2] + grid_index[1] * self.grid_num[2] + grid_index[2]
@@ -254,4 +237,7 @@ class ParticleSystem:
         pressure_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), pressure if pressure is not None else 0)
         self.add_particles(object_id, num_new_particles, new_positions, velocity_arr, density_arr, pressure_arr, material_arr, is_dynamic_arr, color_arr)
    
-    
+    def build_solver(self):
+        
+        return WCSPHSolver(self)
+        
