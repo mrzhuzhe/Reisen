@@ -20,7 +20,7 @@ class SPHBase:
         self.ps.initialize_particle_system()
         #for r_obj_id in self.ps.object_id_rigid_body:
         #    self.compute_rigid_rest_cm(r_obj_id)
-        #self.compute_static_boundary_volume()
+        self.compute_static_boundary_volume()
         #self.compute_moving_boundary_volume()
 
     @ti.kernel
@@ -36,8 +36,18 @@ class SPHBase:
     def compute_boundary_volume_task(self, p_i, p_j, delta: ti.template()):
         delta += self.cubic_kernel((self.ps.x[p_i] - self.ps.x[p_j]).norm())
 
+    """
+    @ti.kernel
     def compute_moving_boundary_volume(self):
-        pass
+        for p_i in ti.grouped(self.ps.x):
+            if not self.ps.is_dynamic_rigid_body(p_i):
+                continue
+            delta = self.cubic_kernel(0.0)
+            self.ps.for_all_neighbors(p_i, self.compute_boundary_volume_task, delta)
+            self.ps.m_V[p_i] = 1.0 / delta * 3.0  # TODO: the 3.0 here is a coefficient for missing particles by trail and error... need to figure out how to determine it sophisticatedly
+
+    """
+    
     def substep(self):
         pass
     def solve_rigid_body(self):
@@ -95,13 +105,16 @@ class SPHBase:
         h = self.ps.support_radius
         # value of cubic spline smoothing kernel
         k = 1.0
-        if self.ps.dim == 1:
+        """
+        if 3 == 1:
             k = 4 / 3
-        elif self.ps.dim == 2:
+        elif 3 == 2:
             k = 40 / 7 / np.pi
-        elif self.ps.dim == 3:
+        elif 3 == 3:
             k = 8 / np.pi
-        k /= h ** self.ps.dim
+        """
+        k = 8 / np.pi
+        k /= h ** 3
         q = r_norm / h
         if q <= 1.0:
             if q <= 0.5:
@@ -110,4 +123,31 @@ class SPHBase:
                 res = k * (6.0 * q3 - 6.0 * q2 + 1)
             else:
                 res = k * 2 * ti.pow(1 - q, 3.0)
+        return res
+    
+    @ti.func
+    def cubic_kernel_derivative(self, r):
+        h = self.ps.support_radius
+        # derivative of cubic spline smoothing kernel
+        """
+        k = 1.0
+        if 3 == 1:
+            k = 4 / 3
+        elif 3 == 2:
+            k = 40 / 7 / np.pi
+        elif 3 == 3:
+            k = 8 / np.pi
+        """
+        k = 8 / np.pi
+        k = 6. * k / h ** 3
+        r_norm = r.norm()
+        q = r_norm / h
+        res = ti.Vector([0.0 for _ in range(3)])
+        if r_norm > 1e-5 and q <= 1.0:
+            grad_q = r / (r_norm * h)
+            if q <= 0.5:
+                res = k * q * (3.0 * q - 2.0) * grad_q
+            else:
+                factor = 1.0 - q
+                res = k * (-factor * factor) * grad_q
         return res

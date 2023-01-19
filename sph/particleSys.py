@@ -45,8 +45,8 @@ class ParticleSystem:
         # no rigid block and rigid bodies
 
         # particle num of each grid
-        self.grid_particles_num = ti.field(int, shape=(int(self.grid_num[0]*self.grid_num[1]*self.grid_num[2])))
-        self.grid_particles_num_temp = ti.field(int, shape=(int(self.grid_num[0]*self.grid_num[1]*self.grid_num[2])))
+        #self.grid_particles_num = ti.field(int, shape=(int(self.grid_num[0]*self.grid_num[1]*self.grid_num[2])))
+        #self.grid_particles_num_temp = ti.field(int, shape=(int(self.grid_num[0]*self.grid_num[1]*self.grid_num[2])))
         
         # particle related properties
         self.object_id = ti.field(dtype=int, shape=self.particle_max_num)
@@ -63,10 +63,23 @@ class ParticleSystem:
         self.material = ti.field(dtype=int, shape=self.particle_max_num)
         self.color = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.is_dynamic = ti.field(dtype=int, shape=self.particle_max_num)
+        
+
+        total_grid_num = self.grid_num[0]*self.grid_num[1]*self.grid_num[2]
+
+        self.list_head = ti.field(dtype=ti.i32, shape=total_grid_num)
+        self.list_cur = ti.field(dtype=ti.i32, shape=total_grid_num)
+        self.list_tail = ti.field(dtype=ti.i32, shape=total_grid_num)
+
+        self.grain_count = ti.field(dtype=ti.i32,
+                            shape=(self.grid_num[0], self.grid_num[1], self.grid_num[2]),
+                            name="grain_count")
+        self.column_sum = ti.field(dtype=ti.i32, shape=(self.grid_num[0], self.grid_num[1]), name="column_sum")
+        self.prefix_sum = ti.field(dtype=ti.i32, shape=(self.grid_num[0], self.grid_num[1]), name="prefix_sum")
+        self.particle_id = ti.field(dtype=ti.i32, shape=self.particle_max_num, name="particle_id")
 
         """
-        change this to new prefix sort 
-        """
+        #change this to new prefix sort         
         # buffer for sort
         self.object_id_buffer = ti.field(dtype=int, shape=self.particle_max_num)
         self.x_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
@@ -80,14 +93,17 @@ class ParticleSystem:
         self.material_buffer = ti.field(dtype=int, shape=self.particle_max_num)
         self.color_buffer = ti.Vector.field(3, dtype=int, shape=self.particle_max_num)
         self.is_dynamic_buffer = ti.field(dtype=int, shape=self.particle_max_num)
+        """
 
         # Grid for each particle
         self.grid_ids = ti.field(int, shape=self.particle_max_num)
-        self.grid_ids_buffer = ti.field(int, shape=self.particle_max_num)
+        #self.grid_ids_buffer = ti.field(int, shape=self.particle_max_num)
         self.grid_ids_new = ti.field(int, shape=self.particle_max_num)
 
+        """
         self.x_vis_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.color_vis_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
+        self.color_vis_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)          
+        """
 
         # initial particles
         # fluid blocks
@@ -163,28 +179,69 @@ class ParticleSystem:
         self.particle_num[None] += new_particles_num        
 
     def initialize_particle_system(self):
-        self.update_grid_id()
+        #self.update_grid_id()
         # [TODO] change this part to grid search rather than cuda simt code
         #parallel_prefix_sum_inclusive_implace(self.grid_particles_num, self.grid_particles_num.shape[0])
         #self.count_sort()
+
+        self.findNeighbors()
     
     # ti.group https://docs.taichi-lang.org/docs/meta#dimensionality-independent-programming-using-grouped-indices
-    @ti.kernel
-    def update_grid_id(self):
+    #@ti.kernel
+    #def update_grid_id(self):
+        """        
         for I in ti.grouped(self.grid_particles_num):
             self.grid_particles_num[I] = 0
         for I in ti.grouped(self.x):
             grid_index = self.get_flatten_grid_index(self.x[I])
             self.grid_ids[I] = grid_index
             ti.atomic_add(self.grid_particles_num[grid_index], 1)
-        for I in ti.grouped(self.grid_particles_num):
-            self.grid_particles_num_temp[I] = self.grid_particles_num[I]
+        """
+        #for I in ti.grouped(self.grid_particles_num):
+        #    self.grid_particles_num_temp[I] = self.grid_particles_num[I]
+
+    @ti.kernel
+    def findNeighbors(self):
+        self.grain_count.fill(0)
+
+        for i in range(self.particle_max_num):
+            #grid_idx = ti.floor(pos[i]* grid_n, int)
+            grid_idx = self.get_flatten_grid_index(self.x[i])
+            self.grain_count[grid_idx] += 1
+        
+        self.column_sum.fill(0)
+        # kernel comunicate with global variable ???? this is a bit amazing 
+        for i, j, k in ti.ndrange(self.grid_num[0], self.grid_num[1], self.grid_num[2]):        
+            ti.atomic_add(self.column_sum[i, j], self.grain_count[i, j, k])
+
+        # this is because memory mapping can be out of order
+        _prefix_sum_cur = 0    
+        for i, j in ti.ndrange(self.grid_num[0], self.grid_num[1]):
+            self.prefix_sum[i, j] = ti.atomic_add(_prefix_sum_cur, self.column_sum[i, j])
+        
+            
+        for i, j, k in ti.ndrange(self.grid_num[0], self.grid_num[1], self.grid_num[2]): 
+            # we cannot visit prefix_sum[i,j] in this loop
+            pre = ti.atomic_add(self.prefix_sum[i,j], self.grain_count[i, j, k])        
+            linear_idx = i * self.grid_num[1] * self.grid_num[2] + j * self.grid_num[2] + k
+            self.list_head[linear_idx] = pre
+            self.list_cur[linear_idx] = self.list_head[linear_idx]
+            # only pre pointer is useable
+            self.list_tail[linear_idx] = pre + self.grain_count[i, j, k]       
+
+        for i in range(self.particle_max_num):
+            grid_idx = self.get_flatten_grid_index(self.x[i])
+            linear_idx = grid_idx[0] * self.grid_num[1] * self.grid_num[2] + grid_idx[1] * self.grid_num[2] + grid_idx[2]
+            grain_location = ti.atomic_add(self.list_cur[linear_idx], 1)
+            self.particle_id[grain_location] = i
+
     
     #   get grid id for each partical position
     @ti.func
     def get_flatten_grid_index(self, pos):
         grid_index = (pos / self.grid_size).cast(int)
-        return grid_index[0] * self.grid_num[1] * self.grid_num[2] + grid_index[1] * self.grid_num[2] + grid_index[2]
+        #return grid_index[0] * self.grid_num[1] * self.grid_num[2] + grid_index[1] * self.grid_num[2] + grid_index[2]
+        return (grid_index[0], grid_index[1] , grid_index[2])
 
     def count_sort(self):
         pass
@@ -243,4 +300,20 @@ class ParticleSystem:
     @ti.func
     def is_static_rigid_body(self, p):
         return self.material[p] == self.material_solid and (not self.is_dynamic[p])
-        
+    
+    @ti.func
+    def is_dynamic_rigid_body(self, p):
+        return self.material[p] == self.material_solid and self.is_dynamic[p]
+    
+    @ti.func
+    def for_all_neighbors(self, p_i, task: ti.template(), ret: ti.template()):
+        center_cell = (self.x[p_i] / self.grid_size).cast(int)
+        for offset in ti.grouped(ti.ndrange(*((-1, 2),) * 3)):
+            #grid_index = self.flatten_grid_index(center_cell + offset)
+            _neigh = center_cell + offset
+            neigh_linear_idx = _neigh[0] * self.grid_num[1] * self.grid_num[2] + _neigh[1] * self.grid_num[2] + _neigh[2]
+            #for p_j in range(self.grid_particles_num[ti.max(0, grid_index-1)], self.grid_particles_num[grid_index]):
+            for p_j in range(self.list_head[neigh_linear_idx],
+                            self.list_tail[neigh_linear_idx]):
+                if p_i[0] != p_j and (self.x[p_i] - self.x[p_j]).norm() < self.support_radius:
+                    task(p_i, p_j, ret)
