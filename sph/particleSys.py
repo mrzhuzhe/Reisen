@@ -206,7 +206,7 @@ class ParticleSystem:
 
         for i in range(self.particle_max_num):
             #grid_idx = ti.floor(pos[i]* grid_n, int)
-            grid_idx = self.get_flatten_grid_index(self.x[i])
+            grid_idx = self.get_flatten_grid_index(self.x[i])            
             self.grain_count[grid_idx] += 1
         
         self.column_sum.fill(0)
@@ -311,9 +311,13 @@ class ParticleSystem:
         for offset in ti.grouped(ti.ndrange(*((-1, 2),) * 3)):
             #grid_index = self.flatten_grid_index(center_cell + offset)
             _neigh = center_cell + offset
+            #neigh_linear_idx = ti.max(0, _neigh[0]) * self.grid_num[1] * self.grid_num[2] + ti.max(0, _neigh[1]) * self.grid_num[2] + ti.max(0, _neigh[2])
             neigh_linear_idx = _neigh[0] * self.grid_num[1] * self.grid_num[2] + _neigh[1] * self.grid_num[2] + _neigh[2]
             #for p_j in range(self.grid_particles_num[ti.max(0, grid_index-1)], self.grid_particles_num[grid_index]):
+            #print(self.list_head[neigh_linear_idx])
+            #print(center_cell, _neigh)
             for p_j in range(self.list_head[neigh_linear_idx],
-                            self.list_tail[neigh_linear_idx]):
-                if p_i[0] != p_j and (self.x[p_i] - self.x[p_j]).norm() < self.support_radius:
-                    task(p_i, p_j, ret)
+                            self.list_tail[neigh_linear_idx]): 
+                j = self.particle_id[p_j]	               
+                if p_i[0] != j and (self.x[p_i] - self.x[j]).norm() < self.support_radius:
+                    task(p_i, j, ret)

@@ -165,5 +165,5 @@ class WCSPHSolver(SPHBase):
     def substep(self):
         self.compute_densities()
         self.compute_non_pressure_forces()  
-        #self.compute_pressure_forces()     
+        self.compute_pressure_forces()     
         self.advect()
