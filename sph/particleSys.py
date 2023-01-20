@@ -8,7 +8,6 @@ from wcsph import WCSPHSolver
 class ParticleSystem:
     def __init__(self):
         self.domain_start = np.array([0, 0, 0])
-        #self.domain_end = np.array([1, 1, 1])
         self.domain_end = np.array([5, 3, 2])
         self.domain_size = self.domain_end - self.domain_start
 
@@ -41,12 +40,17 @@ class ParticleSystem:
             self.object_collection[fluid["objectId"]] = fluid
             fluid_particle_num += particle_num
 
-        self.particle_max_num = fluid_particle_num # + rigid_particle_num
-        # no rigid block and rigid bodies
+        #### Process Rigid Blocks ####
+        rigid_blocks = _config["RigidBlocks"]
+        rigid_particle_num = 0
+        for rigid in rigid_blocks:
+            particle_num = self.compute_cube_particle_num(rigid["start"], rigid["end"])
+            rigid["particleNum"] = particle_num
+            self.object_collection[rigid["objectId"]] = rigid
+            rigid_particle_num += particle_num
 
-        # particle num of each grid
-        #self.grid_particles_num = ti.field(int, shape=(int(self.grid_num[0]*self.grid_num[1]*self.grid_num[2])))
-        #self.grid_particles_num_temp = ti.field(int, shape=(int(self.grid_num[0]*self.grid_num[1]*self.grid_num[2])))
+        self.particle_max_num = fluid_particle_num + rigid_particle_num
+        # no rigid block and rigid bodies
         
         # particle related properties
         self.object_id = ti.field(dtype=int, shape=self.particle_max_num)
@@ -56,7 +60,7 @@ class ParticleSystem:
 
         self.v = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.acceleration = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.m_V = ti.field(dtype=float, shape=self.particle_max_num)
+        self.m_V = ti.field(dtype=float, shape=self.particle_max_num)   # TODO ？
         self.m = ti.field(dtype=float, shape=self.particle_max_num)
         self.density = ti.field(dtype=float, shape=self.particle_max_num)
         self.pressure = ti.field(dtype=float, shape=self.particle_max_num)
@@ -64,7 +68,7 @@ class ParticleSystem:
         self.color = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.is_dynamic = ti.field(dtype=int, shape=self.particle_max_num)
         
-
+        ##
         total_grid_num = self.grid_num[0]*self.grid_num[1]*self.grid_num[2]
 
         self.list_head = ti.field(dtype=ti.i32, shape=total_grid_num)
@@ -77,28 +81,7 @@ class ParticleSystem:
         self.column_sum = ti.field(dtype=ti.i32, shape=(self.grid_num[0], self.grid_num[1]), name="column_sum")
         self.prefix_sum = ti.field(dtype=ti.i32, shape=(self.grid_num[0], self.grid_num[1]), name="prefix_sum")
         self.particle_id = ti.field(dtype=ti.i32, shape=self.particle_max_num, name="particle_id")
-
-        """
-        #change this to new prefix sort         
-        # buffer for sort
-        self.object_id_buffer = ti.field(dtype=int, shape=self.particle_max_num)
-        self.x_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.x_0_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.v_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.acceleration_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.m_V_buffer = ti.field(dtype=float, shape=self.particle_max_num)
-        self.m_buffer = ti.field(dtype=float, shape=self.particle_max_num)
-        self.density_buffer = ti.field(dtype=float, shape=self.particle_max_num)
-        self.pressure_buffer = ti.field(dtype=float, shape=self.particle_max_num)
-        self.material_buffer = ti.field(dtype=int, shape=self.particle_max_num)
-        self.color_buffer = ti.Vector.field(3, dtype=int, shape=self.particle_max_num)
-        self.is_dynamic_buffer = ti.field(dtype=int, shape=self.particle_max_num)
-        """
-
-        # Grid for each particle
-        self.grid_ids = ti.field(int, shape=self.particle_max_num)
-        #self.grid_ids_buffer = ti.field(int, shape=self.particle_max_num)
-        self.grid_ids_new = ti.field(int, shape=self.particle_max_num)
+        ##
 
         """
         self.x_vis_buffer = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
@@ -107,6 +90,7 @@ class ParticleSystem:
 
         # initial particles
         # fluid blocks
+        #"""
         fluid_blocks = _config["FluidBlocks"]
         for fluid in fluid_blocks:
             obj_id = fluid["objectId"]
@@ -127,6 +111,27 @@ class ParticleSystem:
                 color=color,
                 material=1
             )
+        #"""
+        
+            
+        for rigid_block in _config["RigidBlocks"]:                   
+            obj_id = rigid_block["objectId"]
+            offset = np.array(rigid_block["translation"])
+            start = np.array(rigid_block["start"]) + offset            
+            end = np.array(rigid_block["end"]) + offset
+            scale = np.array(rigid_block["scale"])           
+            velocity = rigid_block["velocity"]
+            density = rigid_block["density"]
+            color = rigid_block["color"]
+            self.object_id_rigid_body.add(obj_id)
+            self.add_cube(object_id=obj_id,
+                          lower_corner=start,
+                          cube_size=(end-start)*scale,
+                          velocity=velocity,
+                          density=density, 
+                          is_dynamic=1, # enforce fluid dynamic
+                          color=color,
+                          material=0) # 1 indicates fluid
 
     def add_particles(self,
         object_id: int,
@@ -178,28 +183,9 @@ class ParticleSystem:
             )
         self.particle_num[None] += new_particles_num        
 
-    def initialize_particle_system(self):
-        #self.update_grid_id()
-        # [TODO] change this part to grid search rather than cuda simt code
-        #parallel_prefix_sum_inclusive_implace(self.grid_particles_num, self.grid_particles_num.shape[0])
-        #self.count_sort()
-
+    def initialize_particle_system(self):        
         self.findNeighbors()
     
-    # ti.group https://docs.taichi-lang.org/docs/meta#dimensionality-independent-programming-using-grouped-indices
-    #@ti.kernel
-    #def update_grid_id(self):
-        """        
-        for I in ti.grouped(self.grid_particles_num):
-            self.grid_particles_num[I] = 0
-        for I in ti.grouped(self.x):
-            grid_index = self.get_flatten_grid_index(self.x[I])
-            self.grid_ids[I] = grid_index
-            ti.atomic_add(self.grid_particles_num[grid_index], 1)
-        """
-        #for I in ti.grouped(self.grid_particles_num):
-        #    self.grid_particles_num_temp[I] = self.grid_particles_num[I]
-
     @ti.kernel
     def findNeighbors(self):
         self.grain_count.fill(0)
@@ -243,9 +229,6 @@ class ParticleSystem:
         #return grid_index[0] * self.grid_num[1] * self.grid_num[2] + grid_index[1] * self.grid_num[2] + grid_index[2]
         return (grid_index[0], grid_index[1] , grid_index[2])
 
-    def count_sort(self):
-        pass
-    
     @ti.func
     def add_particle(self, p, obj_id, x, v, density, pressure, material, is_dynamic, color):
         self.object_id[p] = obj_id
@@ -259,7 +242,6 @@ class ParticleSystem:
         self.material[p] = material
         self.is_dynamic[p] = is_dynamic
         self.color[p] = color
-
 
 
     def compute_cube_particle_num(self, start, end):
@@ -309,13 +291,8 @@ class ParticleSystem:
     def for_all_neighbors(self, p_i, task: ti.template(), ret: ti.template()):
         center_cell = (self.x[p_i] / self.grid_size).cast(int)
         for offset in ti.grouped(ti.ndrange(*((-1, 2),) * 3)):
-            #grid_index = self.flatten_grid_index(center_cell + offset)
             _neigh = center_cell + offset
-            #neigh_linear_idx = ti.max(0, _neigh[0]) * self.grid_num[1] * self.grid_num[2] + ti.max(0, _neigh[1]) * self.grid_num[2] + ti.max(0, _neigh[2])
-            neigh_linear_idx = _neigh[0] * self.grid_num[1] * self.grid_num[2] + _neigh[1] * self.grid_num[2] + _neigh[2]
-            #for p_j in range(self.grid_particles_num[ti.max(0, grid_index-1)], self.grid_particles_num[grid_index]):
-            #print(self.list_head[neigh_linear_idx])
-            #print(center_cell, _neigh)
+            neigh_linear_idx = _neigh[0] * self.grid_num[1] * self.grid_num[2] + _neigh[1] * self.grid_num[2] + _neigh[2]            
             for p_j in range(self.list_head[neigh_linear_idx],
                             self.list_tail[neigh_linear_idx]): 
                 j = self.particle_id[p_j]	               

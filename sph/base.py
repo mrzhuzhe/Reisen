@@ -20,7 +20,7 @@ class SPHBase:
         self.ps.initialize_particle_system()
         #for r_obj_id in self.ps.object_id_rigid_body:
         #    self.compute_rigid_rest_cm(r_obj_id)
-        self.compute_static_boundary_volume()
+        #self.compute_static_boundary_volume()
         #self.compute_moving_boundary_volume()
 
     @ti.kernel
@@ -104,8 +104,8 @@ class SPHBase:
         res = ti.cast(0.0, ti.f32)
         h = self.ps.support_radius
         # value of cubic spline smoothing kernel
-        k = 1.0
         """
+        k = 1.0        
         if 3 == 1:
             k = 4 / 3
         elif 3 == 2:
@@ -128,16 +128,7 @@ class SPHBase:
     @ti.func
     def cubic_kernel_derivative(self, r):
         h = self.ps.support_radius
-        # derivative of cubic spline smoothing kernel
-        """
-        k = 1.0
-        if 3 == 1:
-            k = 4 / 3
-        elif 3 == 2:
-            k = 40 / 7 / np.pi
-        elif 3 == 3:
-            k = 8 / np.pi
-        """
+        # derivative of cubic spline smoothing kernel        
         k = 8 / np.pi
         k = 6. * k / h ** 3
         r_norm = r.norm()
