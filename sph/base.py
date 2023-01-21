@@ -18,11 +18,29 @@ class SPHBase:
       
     def initialize(self):
         self.ps.initialize_particle_system()
+        # TODO rigid fluid coupling 1
         #for r_obj_id in self.ps.object_id_rigid_body:
         #    self.compute_rigid_rest_cm(r_obj_id)
         #self.compute_static_boundary_volume()
-        #self.compute_moving_boundary_volume()
+        self.compute_moving_boundary_volume()
 
+    @ti.kernel
+    def compute_rigid_rest_cm(self, object_id: int):
+        self.ps.rigid_rest_cm[object_id] = self.compute_com(object_id)
+
+    @ti.func
+    def compute_com(self, object_id):
+        sum_m = 0.0
+        cm = ti.Vector([0.0, 0.0, 0.0])
+        for p_i in range(self.ps.particle_num[None]):
+            if self.ps.is_dynamic_rigid_body(p_i) and self.ps.object_id[p_i] == object_id:
+                mass = self.ps.m_V0 * self.ps.density[p_i]
+                cm += mass * self.ps.x[p_i]
+                sum_m += mass
+        cm /= sum_m
+        return cm
+
+    """
     @ti.kernel
     def compute_static_boundary_volume(self):
         for p_i in ti.grouped(self.ps.x):
@@ -31,12 +49,14 @@ class SPHBase:
             delta = self.cubic_kernel(0.0)
             self.ps.for_all_neighbors(p_i, self.compute_boundary_volume_task, delta)
             self.ps.m_V[p_i] = 1.0 / delta * 3.0  # TODO: the 3.0 here is a coefficient for missing particles by trail and error... need to figure out how to determine it sophisticatedly
+    """
+    
 
     @ti.func
     def compute_boundary_volume_task(self, p_i, p_j, delta: ti.template()):
         delta += self.cubic_kernel((self.ps.x[p_i] - self.ps.x[p_j]).norm())
 
-    """
+    
     @ti.kernel
     def compute_moving_boundary_volume(self):
         for p_i in ti.grouped(self.ps.x):
@@ -46,19 +66,24 @@ class SPHBase:
             self.ps.for_all_neighbors(p_i, self.compute_boundary_volume_task, delta)
             self.ps.m_V[p_i] = 1.0 / delta * 3.0  # TODO: the 3.0 here is a coefficient for missing particles by trail and error... need to figure out how to determine it sophisticatedly
 
-    """
     
     def substep(self):
         pass
-    def solve_rigid_body(self):
-        pass
-
+   
     @ti.func
     def simulate_collisions(self, p_i, vec):
         # Collision factor, assume roughly (1-c_f)*velocity loss after collision
         c_f = 0.5
         self.ps.v[p_i] -= (
             1.0 + c_f) * self.ps.v[p_i].dot(vec) * vec
+
+    def solve_rigid_body(self):
+        # TODO rigid fluid coupling 2
+        #for i in range(1):
+        #    for r_obj_id in self.ps.object_id_rigid_body:
+        #        R = self.solve_constraints(r_obj_id)
+        # self.compute_rigid_collision()
+        self.enforce_boundary_3D(self.ps.material_solid)
 
     @ti.kernel
     def enforce_boundary_3D(self, particle_type:int):
@@ -94,11 +119,35 @@ class SPHBase:
     def step(self):
         self.ps.initialize_particle_system()
 
-        #self.compute_moving_boundary_volume()
+        self.compute_moving_boundary_volume()
         self.substep()
-        #self.solve_rigid_body()       
+        self.solve_rigid_body()       
         self.enforce_boundary_3D(self.ps.material_fluid)
     
+    @ti.kernel
+    def solve_constraints(self, object_id: int) -> ti.types.matrix(3, 3, float):
+        # compute center of mass
+        cm = self.compute_com(object_id)
+        # A
+        A = ti.Matrix([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+        for p_i in range(self.ps.particle_num[None]):
+            if self.ps.is_dynamic_rigid_body(p_i) and self.ps.object_id[p_i] == object_id:
+                q = self.ps.x_0[p_i] - self.ps.rigid_rest_cm[object_id]
+                p = self.ps.x[p_i] - cm
+                A += self.ps.m_V0 * self.ps.density[p_i] * p @ q.transpose()
+
+        R, S = ti.polar_decompose(A)
+        
+        if all(abs(R) < 1e-6):
+            R = ti.Matrix.identity(ti.f32, 3)
+        
+        for p_i in range(self.ps.particle_num[None]):
+            if self.ps.is_dynamic_rigid_body(p_i) and self.ps.object_id[p_i] == object_id:
+                goal = cm + R @ (self.ps.x_0[p_i] - self.ps.rigid_rest_cm[object_id])
+                corr = (goal - self.ps.x[p_i]) * 1.0
+                self.ps.x[p_i] += corr
+        return R
+
     @ti.func
     def cubic_kernel(self, r_norm):
         res = ti.cast(0.0, ti.f32)

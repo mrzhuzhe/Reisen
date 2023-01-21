@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
         scene.point_light((2.0, 2.0, 2.0), color=(1.0, 1.0, 1.0))
         #scene.particles(ps.x_vis_buffer, radius=ps.particle_radius, per_vertex_color=ps.color_vis_buffer)
-        scene.particles(ps.x, radius=ps.particle_radius)
+        scene.particles(ps.x, radius=ps.particle_radius, per_vertex_color=ps.color)
 
         scene.lines(box_anchors, indices=box_lines_indices, color = (0.99, 0.68, 0.28), width = 1.0)
         canvas.scene(scene)

@@ -56,7 +56,7 @@ class ParticleSystem:
         self.object_id = ti.field(dtype=int, shape=self.particle_max_num)
         self.x = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.x_0 = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        
+        self.rigid_rest_cm = ti.Vector.field(3, dtype=float, shape=len(rigid_blocks))
 
         self.v = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.acceleration = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
@@ -100,7 +100,7 @@ class ParticleSystem:
             scale = np.array(fluid["scale"])
             velocity = fluid["velocity"]
             density = fluid["density"]
-            color = fluid["color"]
+            color = fluid["color"] 
             self.add_cube(
                 object_id=obj_id,
                 lower_corner=start,
@@ -129,9 +129,9 @@ class ParticleSystem:
                           cube_size=(end-start)*scale,
                           velocity=velocity,
                           density=density, 
-                          is_dynamic=1, # enforce fluid dynamic
+                          is_dynamic=1,
                           color=color,
-                          material=0) # 1 indicates fluid
+                          material=0) 
 
     def add_particles(self,
         object_id: int,
@@ -167,12 +167,13 @@ class ParticleSystem:
         new_particles_is_dynamic: ti.types.ndarray(),
         new_particles_color: ti.types.ndarray()
     ):
+        
         for p in range(self.particle_num[None], self.particle_num[None] + new_particles_num):
             v = ti.Vector.zero(float, 3)
             x = ti.Vector.zero(float, 3)
             for d in ti.static(range(3)):
                 v[d] = new_particles_velocity[p - self.particle_num[None], d]
-                x[d] = new_particles_positions[p - self.particle_num[None], d]
+                x[d] = new_particles_positions[p - self.particle_num[None], d]            
             self.add_particle(
                 p, object_id, x, v,
                 new_particles_density[p - self.particle_num[None]],
@@ -271,7 +272,7 @@ class ParticleSystem:
 
         material_arr = np.full_like(np.zeros(num_new_particles, dtype=np.int32), material)
         is_dynamic_arr = np.full_like(np.zeros(num_new_particles, dtype=np.int32), is_dynamic)
-        color_arr = np.stack([np.full_like(np.zeros(num_new_particles, dtype=np.int32), c) for c in color], axis=1)
+        color_arr = np.stack([np.full_like(np.zeros(num_new_particles, dtype=np.float32), c) for c in color], axis=1)       
         density_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), density if density is not None else 1000)
         pressure_arr = np.full_like(np.zeros(num_new_particles, dtype=np.float32), pressure if pressure is not None else 0)
         self.add_particles(object_id, num_new_particles, new_positions, velocity_arr, density_arr, pressure_arr, material_arr, is_dynamic_arr, color_arr)
