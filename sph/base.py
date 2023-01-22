@@ -135,13 +135,17 @@ class SPHBase:
                 q = self.ps.x_0[p_i] - self.ps.rigid_rest_cm[object_id]
                 p = self.ps.x[p_i] - cm
                 A += self.ps.m_V0 * self.ps.density[p_i] * p @ q.transpose()
-
+        #   https://docs.taichi-lang.org/api/master/taichi/_funcs/#taichi._funcs.polar_decompose
+        #   https://en.wikipedia.org/wiki/Polar_decomposition
+        #   R is rotation S is scaling
         R, S = ti.polar_decompose(A)
         
         if all(abs(R) < 1e-6):
             R = ti.Matrix.identity(ti.f32, 3)
         
         for p_i in range(self.ps.particle_num[None]):
+            # TODO rigid_rest_cm is as same as cm ？
+            # @ denotes matrix multiplication
             if self.ps.is_dynamic_rigid_body(p_i) and self.ps.object_id[p_i] == object_id:
                 goal = cm + R @ (self.ps.x_0[p_i] - self.ps.rigid_rest_cm[object_id])
                 corr = (goal - self.ps.x[p_i]) * 1.0
