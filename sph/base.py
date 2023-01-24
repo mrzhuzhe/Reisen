@@ -137,6 +137,7 @@ class SPHBase:
                 A += self.ps.m_V0 * self.ps.density[p_i] * p @ q.transpose()
         #   https://docs.taichi-lang.org/api/master/taichi/_funcs/#taichi._funcs.polar_decompose
         #   https://en.wikipedia.org/wiki/Polar_decomposition
+        #   https://en.wikipedia.org/wiki/Finite_strain_theory#Polar_decomposition_of_the_deformation_gradient_tensor
         #   R is rotation S is scaling
         R, S = ti.polar_decompose(A)
         
