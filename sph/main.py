@@ -2,7 +2,7 @@ import taichi as ti
 from particleSys import ParticleSystem
 from config import _config
 
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.cpu)
 
 
     
