@@ -19,8 +19,8 @@ class SPHBase:
     def initialize(self):
         self.ps.initialize_particle_system()
         # TODO rigid fluid coupling 1
-        #for r_obj_id in self.ps.object_id_rigid_body:
-        #    self.compute_rigid_rest_cm(r_obj_id)
+        for r_obj_id in self.ps.object_id_rigid_body:
+            self.compute_rigid_rest_cm(r_obj_id)
         #self.compute_static_boundary_volume()
         self.compute_moving_boundary_volume()
 
@@ -79,9 +79,9 @@ class SPHBase:
 
     def solve_rigid_body(self):
         # TODO rigid fluid coupling 2
-        #for i in range(1):
-        #    for r_obj_id in self.ps.object_id_rigid_body:
-        #        R = self.solve_constraints(r_obj_id)
+        for i in range(1):
+            for r_obj_id in self.ps.object_id_rigid_body:
+                R = self.solve_constraints(r_obj_id)
         # self.compute_rigid_collision()
         self.enforce_boundary_3D(self.ps.material_solid)
 
@@ -138,6 +138,8 @@ class SPHBase:
 
         R, S = ti.polar_decompose(A)
         
+        #R = A
+
         if all(abs(R) < 1e-6):
             R = ti.Matrix.identity(ti.f32, 3)
         

@@ -277,7 +277,7 @@ def update():
 	for step in range(numSubSteps):
 		integrateParticles(sdt, gravity)
 		#"""
-		pushParticlesApart(numParticleIters)
+		#pushParticlesApart(numParticleIters)
 		handleParticleCollisions()
 		#transferVelocitiesP2G()
 		#updateParticleDensity()
