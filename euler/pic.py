@@ -87,11 +87,9 @@ def clamp(x: float, min: float, max: float):
 	ret = x
 	if x < min:
 		ret = min
-	elif x > max:
+	if x > max:
 		ret = max
-	else:
-		pass
-	return ret 
+	return ti.cast(ret, int) 
 
 @ti.kernel
 def init():
@@ -99,7 +97,7 @@ def init():
 	dy = ti.sqrt(3.0) / 2.0 * dx
 	for i, j in ti.ndrange(numX, numY):
 		cnt = i* numY + j	
-		particlePos[cnt][0] = 10 * h + r + dx * i + (0 if j % 2 == 0 else r)
+		particlePos[cnt][0] = h + r + dx * i + (0 if j % 2 == 0 else r)
 		particlePos[cnt][1] = 10 * h + r + dy * j
 		
 
@@ -122,61 +120,84 @@ def pushParticlesApart(numIters: int):
 		yi = clamp(ti.floor(y * pInvSpacing), 0, pNumY-1)		
 		numCellParticles[xi, yi] += 1
 	"""
+	#ti.loop_config(serialize=True)
 	for i in ti.ndrange(numParticles):
-		x, y = particlePos[i]
-
-		xi = clamp(ti.floor(x * pInvSpacing), 0, pNumX-1)
-		yi = clamp(ti.floor(y * pInvSpacing), 0, pNumY-1)		
-		numCellParticles[int(xi*pNumY+yi)] += 1
-
+		x, y = ti.floor(particlePos[i] * pInvSpacing)
+		xi = clamp(x, 0, pNumX-1)
+		yi = clamp(y, 0, pNumY-1)
+		numCellParticles[xi*pNumY+yi] += 1 # auto atomic add
+		
+		
 	# partial sums 
 	first = 0
-	for i, j in ti.ndrange(pNumX, pNumY):
-		first += numCellParticles[int(i*pNumY+j)]
-		firstCellParticle[i*pNumY+j] = first
+	# [TODO] series
+	#ti.loop_config(serialize=True)
+	for i in ti.ndrange(pNumCells):
+		#first += numCellParticles[i]
+		#firstCellParticle[i] = first
+		firstCellParticle[i] = ti.atomic_add(first, numCellParticles[i])
 	firstCellParticle[pNumCells] = first
+	
+	"""
+	ti.loop_config(serialize=True)
+	for i in range(pNumCells+1):
+		if firstCellParticle[i] < 10000:
+			#print(numCellParticles[i])
+			print(i, firstCellParticle[i])
+	"""
 
-	# fill particles into cells
+	# fill particles into cells  
+	#ti.loop_config(serialize=True)
 	for i in ti.ndrange(numParticles):
-		x, y = particlePos[i]
-		xi = clamp(ti.floor(x* pInvSpacing), 0, pNumX-1)
-		yi = clamp(ti.floor(y* pInvSpacing), 0, pNumY-1)
-		_ind = int(xi*pNumY+yi)
-		firstCellParticle[_ind] -= 1
+		#x, y = particlePos[i]
+		x, y = ti.floor(particlePos[i] * pInvSpacing)
+		xi = clamp(x, 0, pNumX-1)
+		yi = clamp(y, 0, pNumY-1)
+		_ind = xi*pNumY+yi
+		firstCellParticle[_ind] -= 1 #	auto atomic
 		cellParticleIds[firstCellParticle[_ind]] = i
 
+	
 	minDist = 2 * particleRadius
 	minDist2 = minDist * minDist
 
 	for iter in range(numIters):
+		#ti.loop_config(serialize=True)
 		for i in ti.ndrange(numParticles):
-			px, py = particlePos[i]
-			pxi = ti.cast(ti.floor(px * pInvSpacing), int)
-			pyi = ti.cast(ti.floor(py * pInvSpacing), int)
+			pxi, pyi = ti.cast(ti.floor(particlePos[i]* pInvSpacing), int)
+			# TODO reduce cast type
 			x0 = ti.max(pxi-1, 0)
 			y0 = ti.max(pyi-1, 0)
 			x1 = ti.min(pxi+1, pNumX-1)
 			y1 = ti.min(pyi+1, pNumY-1)
+			#ti.loop_config(serialize=True)
 			for xi, yi in ti.ndrange((x0, x1), (y0, y1)):
 				first = firstCellParticle[xi*pNumY+yi]
-				last = firstCellParticle[xi*pNumY+yi+1]
+				last = firstCellParticle[xi*pNumY+yi+1]				
 				for j in range(first, last):
 					id = cellParticleIds[j]
 					if id == i:
 						continue
-					qx, qy = particlePos[id]
+					#qx, qy = particlePos[id]
 					
-					dx = qx - px 
-					dy = qy - py
-					d2 = dx * dx + dy * dy
+					#dx = qx - px 
+					#dy = qy - py
+					delta = particlePos[id] - particlePos[i]
+					#d2 = dx * dx + dy * dy
+					d2 = delta.dot(delta)
 					if (d2 > minDist2 or d2 == 0):
 						continue
-					d = ti.sqrt(d2)
+					#d = ti.sqrt(d2)
+					d = delta.norm()
 					s = 0.5 * (minDist -d) / d
-					dx *= s
-					dy *= s
-					particlePos[i] -= [dx, dy]
-					particlePos[id] += [dx, dy]
+					#dx *= s
+					#dy *= s
+					delta *= s
+					#particlePos[i] -= [dx, dy]
+					#particlePos[id] += [dx, dy]
+					particlePos[i] -= delta
+					particlePos[id] += delta
+
 
 @ti.kernel
 def handleParticleCollisions():
@@ -276,15 +297,12 @@ def update():
 	
 	for step in range(numSubSteps):
 		integrateParticles(sdt, gravity)
-		#"""
-		#pushParticlesApart(numParticleIters)
+		pushParticlesApart(numParticleIters)
 		handleParticleCollisions()
 		#transferVelocitiesP2G()
 		#updateParticleDensity()
 		#solveIncompressibility(numPressureIters, sdt)
 		#transferVelocitiesG2P()
-		
-		#"""
 
 gui = ti.GUI('PIC-2D', (c_width, c_height))
 
