@@ -653,13 +653,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 			for (var step = 0; step < numSubSteps; step++) {
 				this.integrateParticles(sdt, gravity);
-				if (separateParticles)
-					this.pushParticlesApart(numParticleIters); 
+				//if (separateParticles)
+				//	this.pushParticlesApart(numParticleIters); 
 				this.handleParticleCollisions(obstacleX, abstacleY, obstacleRadius)
-				//this.transferVelocities(true);
-				//this.updateParticleDensity();
-				//this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
-				//this.transferVelocities(false, flipRatio);
+				this.transferVelocities(true);
+				this.updateParticleDensity();
+				this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
+				this.transferVelocities(false, flipRatio);
 			}
 
 			this.updateParticleColors();

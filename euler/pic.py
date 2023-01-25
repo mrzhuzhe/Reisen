@@ -175,7 +175,7 @@ def pushParticlesApart(numIters: int):
 				first = firstCellParticle[xi*pNumY+yi]
 				last = firstCellParticle[xi*pNumY+yi+1]				
 				for j in range(first, last):
-					id = cellParticleIds[j]
+					id = cellParticleIds[j]					
 					if id == i:
 						continue
 					#qx, qy = particlePos[id]
@@ -197,6 +197,7 @@ def pushParticlesApart(numIters: int):
 					#particlePos[id] += [dx, dy]
 					particlePos[i] -= delta
 					particlePos[id] += delta
+					
 
 
 @ti.kernel
@@ -273,19 +274,29 @@ def updateParticleDensity():
         if numFluidCells > 0:
             particleRestDensity = sum / numFluidCells
 
-def transferVelocities(toGrid, flipRatio):
-    h1 = fInvSpacing
-    if toGrid:
-        for i, j in ti.ndrange(fnumX, fnumY):
-            preU[i, j] = U[i, j]
-            preV[i, j] = V[i, j]
-        dU.fill(0)
-        dV.fill(0)
-        U.fill(0)
-        V.fill(0)
+def p2g():
+	h1 = fInvSpacing
+    
+	for i, j in ti.ndrange(fnumX, fnumY):
+		preU[i, j] = U[i, j]
+		preV[i, j] = V[i, j]
+	dU.fill(0)
+	dV.fill(0)
+	U.fill(0)
+	V.fill(0)
 
-        for i in ti.ndrange(fNumCells):
-            cellType[i] = SOLID_CELL if S[i] == 0 else AIR_CELL
+	for i in ti.ndrange(fNumCells):
+		cellType[i] = SOLID_CELL if S[i] == 0 else AIR_CELL
+
+	for i in ti.ndrange(numParticles):
+		x, y =ti.floor(particlePos[i]* h1)
+		xi = clamp(x, 0, fnumX-1)
+		yi = clamp(y, 0, fnumY-1)
+		_ind = xi * fnumY + yi
+		cellType[_ind] = FLUID_CELL
+
+def g2p():
+	pass
 
 def solveIncompressibility(numIters, dt, overRelaxation, compensateDrift = True):
     
@@ -297,12 +308,12 @@ def update():
 	
 	for step in range(numSubSteps):
 		integrateParticles(sdt, gravity)
-		pushParticlesApart(numParticleIters)
+		#pushParticlesApart(numParticleIters)
 		handleParticleCollisions()
-		#transferVelocitiesP2G()
-		#updateParticleDensity()
-		#solveIncompressibility(numPressureIters, sdt)
-		#transferVelocitiesG2P()
+		p2g()
+		updateParticleDensity()
+		solveIncompressibility(numPressureIters, sdt)
+		g2p()
 
 gui = ti.GUI('PIC-2D', (c_width, c_height))
 
@@ -310,11 +321,11 @@ init()
 
 
 while gui.running:
-    update()
+	update()
 
-    pos = particlePos.to_numpy()
-    #print(pos * c_width)
-    gui.circles(pos , radius=2)
+	pos = particlePos.to_numpy()
+	#print(pos * c_width)
+	gui.circles(pos , radius=2)
 
-    #gui.set_image(pixels)
-    gui.show()
+	#gui.set_image(pixels)
+	gui.show()
