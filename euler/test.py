@@ -28,6 +28,7 @@ h2 = 0.5 * h
 numX = res
 numY = res
 
+# U V 应该存的是网格 x y 上的速度
 U = ti.field(dtype=ti.f32, shape=(numX, numY))
 V = ti.field(dtype=ti.f32, shape=(numX, numY))
 newU = ti.field(dtype=ti.f32, shape=(numX, numY))
@@ -80,7 +81,7 @@ def sampleFieldU(x, y , field: int):
 
 	sx = 1.0 - tx 
 	sy = 1.0 - ty
-
+	# 应该是从四个角差值本身的速度U（或者V）
 	return sx*sy * U[x0, y0] + tx*sy * U[x1, y0] + tx*ty * U[x1, y1] + sx*ty * U[x0, y1]	
 	
 
@@ -122,7 +123,7 @@ def sampleFieldM(x, y , field: int):
 
 	y0 = int(ti.min(ti.floor((y-dy)*h1), numY-1))
 	ty = ((y - dy)- y0*h)*h1
-	y1 = int(ti.min(y0+1, numY-1))
+	y1 = int(ti.min(y0+1, numY-1)) # 边界
 
 	sx = 1 - tx 
 	sy = 1 - ty
@@ -155,7 +156,7 @@ def solveIncompressibility(substep: int, dt: float):
 		if _s == 0:
 			continue
 		
-		_div = U[i+1, j] - U[i, j] + V[i, j+1] - V[i, j] 
+		_div = U[i+1, j] - U[i, j] + V[i, j+1] - V[i, j] # 散度
 		_p = -_div / _s
 		#if _div != 0 :	print(_div)
 		#_p *=  1.9
@@ -172,11 +173,11 @@ def solveIncompressibility(substep: int, dt: float):
 @ti.kernel
 def extrapolate():
 	for i in range(numX):
-		U[i, 0] = U[i, 1]
+		#U[i, 0] = U[i, 1]
 		U[i, numY-1] = U[i, numY-2] 
 
 	for j in range(numY):
-		V[0, j] = V[1, j]
+		#V[0, j] = V[1, j]
 		V[numX-1, j] = V[numX-2, j]
 
 @ti.kernel
@@ -191,10 +192,10 @@ def advectVel(dt: float):
 			x = i * h
 			y = j * h + h2
 			_u = U[i, j]
-			_v = avgV(i, j)
-			x = x - dt * _u
+			_v = avgV(i, j) # 网格向粒子投影
+			x = x - dt * _u # 粒子运动
 			y = y - dt * _v
-			_u = sampleFieldU(x, y, U_FIELD)
+			_u = sampleFieldU(x, y, U_FIELD) # 粒子速度更新网格
 			newU[i, j] = _u
 			#print(_u)
 		# v component
@@ -238,7 +239,7 @@ def advectSmoke(dt: float):
 @ti.kernel
 def draw():	
 	for i, j in ti.ndrange(numX, numY):
-		_s = M[i, j]			
+		_s = M[i, j]		# 烟雾模拟 M 代表什么	
 		#x = ti.floor(cX(i * h))
 		x = ti.floor(cX(i * h))
 		#y = ti.floor(cY((j+1) * h))

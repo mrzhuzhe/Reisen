@@ -280,19 +280,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				// obstacle collision
 
 				if (d2 < minDist2) {
-					
-					// as same as separete but only for obstacle
-					/*
-					var d = Math.sqrt(d2);
-					var s = (minDist - d) / d;
-					x += dx * s;
-					y += dy * s;
-					*/
+
+					// var d = Math.sqrt(d2);
+					// var s = (minDist - d) / d;
+					// x += dx * s;
+					// y += dy * s;
+
 					this.particleVel[2 * i] = scene.obstacleVelX;
 					this.particleVel[2 * i + 1] = scene.obstacleVelY;
 				}
 
-				// wall collisions boudary condition
+				// wall collisions
 
 				if (x < minX) {
 					x = minX;
@@ -656,10 +654,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				if (separateParticles)
 					this.pushParticlesApart(numParticleIters); 
 				this.handleParticleCollisions(obstacleX, abstacleY, obstacleRadius)
-				//this.transferVelocities(true);
-				//this.updateParticleDensity();
-				//this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
-				//this.transferVelocities(false, flipRatio);
+				this.transferVelocities(true);
+				this.updateParticleDensity();
+				this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
+				this.transferVelocities(false, flipRatio);
 			}
 
 			this.updateParticleColors();
@@ -716,15 +714,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		// dam break
 
 		// compute number of particles
-		console.log("h", h)
-		var r = 0.3 * h;	// particle radius w.r.t. cell size
+
+		var r = 0.3 * h;	// particle radius w.r.t. cell size       
 		var dx = 2.0 * r;
 		var dy = Math.sqrt(3.0) / 2.0 * dx;
 
  		var numX = Math.floor((relWaterWidth * tankWidth - 2.0 * h - 2.0 * r) / dx);
 		var numY = Math.floor((relWaterHeight * tankHeight - 2.0 * h - 2.0 * r) / dy);
-
-		console.log(numX, numY)
 		var maxParticles = numX * numY;		
 
 		// create fluid
@@ -732,7 +728,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		f = scene.fluid = new FlipFluid(density, tankWidth, tankHeight, h, r, maxParticles);
 
 		// create particles
-		console.log(dx, dy, r)
+
 		f.numParticles = numX * numY;
 		var p = 0;
 		for (var i = 0; i < numX; i++) {
