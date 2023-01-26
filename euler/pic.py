@@ -44,6 +44,10 @@ dV = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 preU = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 preV = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 
+#UV = ti.Vector.field(2, dtype=ti.f32, shape=(fnumX, fnumY))
+#dUV = ti.Vector.field(2, dtype=ti.f32, shape=(fnumX, fnumY))
+#preUV = ti.Vector.field(2, dtype=ti.f32, shape=(fnumX, fnumY))
+
 P = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 S = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 
@@ -198,8 +202,6 @@ def pushParticlesApart(numIters: int):
 					particlePos[i] -= delta
 					particlePos[id] += delta
 					
-
-
 @ti.kernel
 def handleParticleCollisions():
     h = 1 / fInvSpacing
@@ -274,14 +276,40 @@ def updateParticleDensity():
         if numFluidCells > 0:
             particleRestDensity = sum / numFluidCells
 
+@ti.func
+def project(x, y, dx, dy):
+	h1 = fInvSpacing
+	x0 = ti.min(ti.floor((x - dx)*h1), fnumX-2)
+	tx = (x - dx  - x0*h) * h1
+	x1 = ti.min(x0+1, fnumX-2)
+
+	y0 = ti.min(ti.floor((y-dy)*h1), fnumY-2)
+	ty = (y - dy - y0*h) * h1
+	y1 = ti.min(y0+1, fnumY-2)
+
+	sx = 1.0 - tx
+	sy = 1.0 - ty
+
+	d0 = sx * sy
+	d1 = tx * sy
+	d2 = tx * ty
+	d3 = sx * ty
+	return x0, x1, y0, y1, d0, d1, d2, d3
+
+@ti.kernel
 def p2g():
 	h1 = fInvSpacing
     
 	for i, j in ti.ndrange(fnumX, fnumY):
 		preU[i, j] = U[i, j]
 		preV[i, j] = V[i, j]
+		#preUV[i, j] = UV[i, j]
+
+	#dUV.fill(0)
 	dU.fill(0)
 	dV.fill(0)
+
+	#UV.fill(0)
 	U.fill(0)
 	V.fill(0)
 
@@ -295,9 +323,64 @@ def p2g():
 		_ind = xi * fnumY + yi
 		cellType[_ind] = FLUID_CELL
 
-def g2p():
-	pass
+	for i in range(numParticles):
+		x, y = particlePos[i]
+		x = clamp(x, h, (fnumX-1)*h)
+		y = clamp(y, h, (fnumY-1)*h)
+		
+		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
+		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
+		
+		pv0 = particleVel[i][0]		
+		U[Ux0, Uy0] += pv0 * Ud0
+		U[Ux1, Uy0] += pv0 * Ud1
+		U[Ux1, Uy1] += pv0 * Ud2
+		U[Ux0, Uy1] += pv0 * Ud3
 
+		preU[Ux0, Uy0] += Ud0
+		preU[Ux1, Uy0] += Ud1
+		preU[Ux1, Uy1] += Ud2
+		preU[Ux0, Uy1] += Ud3
+
+		pv1 = particleVel[i][1]
+		V[Vx0, Vy0] += pv1 * Vd0
+		V[Vx1, Vy0] += pv1 * Vd1
+		V[Vx1, Vy1] += pv1 * Vd2
+		V[Vx0, Vy1] += pv1 * Vd3
+
+		preV[Vx0, Vy0] += Vd0
+		preV[Vx1, Vy0] += Vd1
+		preV[Vx1, Vy1] += Vd2
+		preV[Vx0, Vy1] += Vd3
+
+	for i, i in ti.ndrange(fnumX, fnumY):
+		if dU[i, j] > 0:
+			U[i, j] /=  dU[i, j]
+		if dV[i, j] > 0:
+			V[i, j] /=  dV[i, j]
+
+	for i,j in ti.ndrange(fnumX, fnumY):
+		solid = cellType[i, j] == SOLID_CELL
+		if (solid or (i > 0 and cellType[i-1, j] == SOLID_CELL)):
+			U[i, j] = preU[i, j]
+		if (solid or (j > 0 and cellType[i, j-1] == SOLID_CELL)):
+			V[i, j] = preV[i, j]
+	
+
+@ti.kernel
+def g2p():
+	h1 = fInvSpacing
+	for i in range(numParticles):
+		x, y = particlePos[i]
+		x = clamp(x, h, (fnumX-1)*h)
+		y = clamp(y, h, (fnumY-1)*h)
+		
+		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
+		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
+		
+		
+
+@ti.kernel
 def solveIncompressibility(numIters, dt, overRelaxation, compensateDrift = True):
     
     pass
@@ -311,9 +394,9 @@ def update():
 		#pushParticlesApart(numParticleIters)
 		handleParticleCollisions()
 		p2g()
-		updateParticleDensity()
-		solveIncompressibility(numPressureIters, sdt)
-		g2p()
+		#updateParticleDensity()
+		#solveIncompressibility(numPressureIters, sdt)
+		#g2p()
 
 gui = ti.GUI('PIC-2D', (c_width, c_height))
 
