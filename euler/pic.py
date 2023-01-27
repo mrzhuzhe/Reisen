@@ -106,6 +106,14 @@ def init():
 		cnt = i* numY + j	
 		particlePos[cnt][0] = h + r + dx * i + (0 if j % 2 == 0 else r)
 		particlePos[cnt][1] = 10 * h + r + dy * j
+
+	for i, j in ti.ndrange(fnumX, fnumY):
+		s = 1.0	# fluid
+		if (i == 0 or i == fnumX-1 or j == 0):
+			s = 0.0;	# solid
+		S[i, j] = s
+	
+	
 		
 
 @ti.kernel
@@ -273,6 +281,7 @@ def updateParticleDensity(d: ti.template()):
 		if x1 < fnumX and y1 < fnumY: d[x1, y1] += tx * ty
 		if x0 < fnumX and y1 < fnumY: d[x0, y1] += sx * ty
     
+	"""
 	if particleRestDensity == 0:
 		sum = 0.0
 		numFluidCells = 0
@@ -285,6 +294,8 @@ def updateParticleDensity(d: ti.template()):
 
 		if numFluidCells > 0:
 			particleRestDensity = sum / numFluidCells
+	"""
+	
 
 @ti.func
 def project(x, y, dx, dy):
@@ -311,9 +322,9 @@ def project(x, y, dx, dy):
 def p2g():
 	h1 = fInvSpacing
     
-	for i, j in ti.ndrange(fnumX, fnumY):
-		preU[i, j] = U[i, j]
-		preV[i, j] = V[i, j]
+	#for i, j in ti.ndrange(fnumX, fnumY):
+	#	preU[i, j] = U[i, j]
+	#	preV[i, j] = V[i, j]
 		#preUV[i, j] = UV[i, j]
 
 	#dUV.fill(0)
@@ -333,7 +344,8 @@ def p2g():
 		x, y =ti.floor(particlePos[i]* h1)
 		xi = clamp(x, 0, fnumX-1)
 		yi = clamp(y, 0, fnumY-1)
-		cellType[xi, yi] = FLUID_CELL
+		if cellType[xi, yi]  == AIR_CELL:
+			cellType[xi, yi] = FLUID_CELL
 
 	for i in range(numParticles):
 		x, y = particlePos[i]
@@ -343,16 +355,16 @@ def p2g():
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
 		
-		pv0 = particleVel[i][0]		
+		pv0 = particleVel[i][0]
 		U[Ux0, Uy0] += pv0 * Ud0
 		U[Ux1, Uy0] += pv0 * Ud1
 		U[Ux1, Uy1] += pv0 * Ud2
 		U[Ux0, Uy1] += pv0 * Ud3
 
-		preU[Ux0, Uy0] += Ud0
-		preU[Ux1, Uy0] += Ud1
-		preU[Ux1, Uy1] += Ud2
-		preU[Ux0, Uy1] += Ud3
+		dU[Ux0, Uy0] += Ud0
+		dU[Ux1, Uy0] += Ud1
+		dU[Ux1, Uy1] += Ud2
+		dU[Ux0, Uy1] += Ud3
 
 		pv1 = particleVel[i][1]
 		V[Vx0, Vy0] += pv1 * Vd0
@@ -360,17 +372,18 @@ def p2g():
 		V[Vx1, Vy1] += pv1 * Vd2
 		V[Vx0, Vy1] += pv1 * Vd3
 
-		preV[Vx0, Vy0] += Vd0
-		preV[Vx1, Vy0] += Vd1
-		preV[Vx1, Vy1] += Vd2
-		preV[Vx0, Vy1] += Vd3
+		dV[Vx0, Vy0] += Vd0
+		dV[Vx1, Vy0] += Vd1
+		dV[Vx1, Vy1] += Vd2
+		dV[Vx0, Vy1] += Vd3
 
 	for i, j in ti.ndrange(fnumX, fnumY):
 		if dU[i, j] > 0:
 			U[i, j] /=  dU[i, j]
 		if dV[i, j] > 0:
 			V[i, j] /=  dV[i, j]
-
+			
+	# no solid
 	for i,j in ti.ndrange(fnumX, fnumY):
 		solid = cellType[i, j] == SOLID_CELL
 		if (solid or (i > 0 and cellType[i-1, j] == SOLID_CELL)):
@@ -389,10 +402,10 @@ def g2p():
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
 		
-		Uvalid0 = 1 if cellType[Ux0, Uy0] != AIR_CELL or cellType[Ux0-1 , Uy0] != AIR_CELL else 0
-		Uvalid1 = 1 if cellType[Ux1, Uy0] != AIR_CELL or cellType[Ux1-1 , Uy0] != AIR_CELL else 0
-		Uvalid2 = 1 if cellType[Ux1, Uy1] != AIR_CELL or cellType[Ux1-1 , Uy1] != AIR_CELL else 0
-		Uvalid3 = 1 if cellType[Ux0, Uy1] != AIR_CELL or cellType[Ux0-1 , Uy1] != AIR_CELL else 0
+		Uvalid0 = 1 if (cellType[Ux0, Uy0] != AIR_CELL or cellType[Ux0-1 , Uy0] != AIR_CELL) else 0
+		Uvalid1 = 1 if (cellType[Ux1, Uy0] != AIR_CELL or cellType[Ux1-1 , Uy0] != AIR_CELL) else 0
+		Uvalid2 = 1 if (cellType[Ux1, Uy1] != AIR_CELL or cellType[Ux1-1 , Uy1] != AIR_CELL) else 0
+		Uvalid3 = 1 if (cellType[Ux0, Uy1] != AIR_CELL or cellType[Ux0-1 , Uy1] != AIR_CELL) else 0
 
 		Ud = Uvalid0 * Ud0 + Uvalid1 * Ud1 + Uvalid2 * Ud2 + Uvalid3 * Ud3
 
@@ -403,10 +416,10 @@ def g2p():
 			+ Uvalid3 * Ud3 * U[Ux0, Uy1]) / Ud
 			
 
-		Vvalid0 = 1 if cellType[Vx0, Vy0] != AIR_CELL or cellType[Vx0 , Vy0-1] != AIR_CELL else 0
-		Vvalid1 = 1 if cellType[Vx1, Vy0] != AIR_CELL or cellType[Vx1 , Vy0-1] != AIR_CELL else 0
-		Vvalid2 = 1 if cellType[Vx1, Vy1] != AIR_CELL or cellType[Vx1 , Vy1-1] != AIR_CELL else 0
-		Vvalid3 = 1 if cellType[Vx0, Vy1] != AIR_CELL or cellType[Vx0 , Vy1-1] != AIR_CELL else 0
+		Vvalid0 = 1 if (cellType[Vx0, Vy0] != AIR_CELL or cellType[Vx0 , Vy0-1] != AIR_CELL) else 0
+		Vvalid1 = 1 if (cellType[Vx1, Vy0] != AIR_CELL or cellType[Vx1 , Vy0-1] != AIR_CELL) else 0
+		Vvalid2 = 1 if (cellType[Vx1, Vy1] != AIR_CELL or cellType[Vx1 , Vy1-1] != AIR_CELL) else 0
+		Vvalid3 = 1 if (cellType[Vx0, Vy1] != AIR_CELL or cellType[Vx0 , Vy1-1] != AIR_CELL) else 0
 
 		Vd = Vvalid0 * Vd0 + Vvalid1 * Vd1 + Vvalid2 * Vd2 + Vvalid3 * Vd3		
 
@@ -461,8 +474,9 @@ def update():
 	for step in range(numSubSteps):
 		integrateParticles(sdt, gravity)
 		# TODO 性能问题
-		#pushParticlesApart(numParticleIters)
+		pushParticlesApart(numParticleIters)
 		handleParticleCollisions()
+		
 		p2g()
 		updateParticleDensity(particleDensity)
 		solveIncompressibility(numPressureIters, sdt)
