@@ -1,9 +1,3 @@
-from turtle import right
-from types import CellType
-from xml.etree.ElementTree import PI
-from numpy import int32
-from psutil import pid_exists
-from regex import D
 import taichi as ti
 
 ti.init(arch=ti.gpu)
@@ -37,8 +31,6 @@ numY = 100
 fnumX = int(1 / h + 1) 
 fnumY = int(1 / h + 1)
 fInvSpacing = 1 / h
-fNumCells = fnumX * fnumY
-
 
 U = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 V = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
@@ -55,25 +47,22 @@ P = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 S = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 
 cellType = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
-cellColor = ti.Vector.field(3, dtype=ti.f32, shape=(fnumX, fnumY))
-
-
+#cellColor = ti.Vector.field(3, dtype=ti.f32, shape=(fnumX, fnumY))
 
 numParticles = numX * numY
 particlePos = ti.Vector.field(2, dtype=ti.f32, shape=numParticles)
-particleColor = ti.Vector.field(3, dtype=ti.f32, shape=numParticles)
+#particleColor = ti.Vector.field(3, dtype=ti.f32, shape=numParticles)
 # init color 
 
 particleVel = ti.Vector.field(2, dtype=ti.f32, shape=numParticles)
 
 particleDensity = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
-particleRestDensity = 0
+#particleRestDensity = 0
 
 particleRadius = r
 pInvSpacing = 1.0 / (2.2 * particleRadius)
 
 print("pInvSpacing", pInvSpacing)
-
 
 pNumX = ti.floor(width * pInvSpacing) + 1
 pNumY = ti.floor(height * pInvSpacing) + 1
@@ -87,7 +76,8 @@ cellParticleIds =  ti.field(dtype=ti.i32, shape=numParticles)
 
 print("pNumX pNumY", pNumX, pNumY)
 
-pixels = ti.field(dtype=ti.f32, shape=(c_width, c_height))
+minDist = 2 * particleRadius
+minDist2 = minDist * minDist
 
 @ti.func
 def clamp(x: float, min: float, max: float):
@@ -123,8 +113,8 @@ def integrateParticles(dt: float, gravity: float):
 		particlePos[i] += particleVel[i] * dt        
 
 @ti.kernel
-def pushParticlesApart(numIters: int):    
-    # count particles per cell
+def countParticleInGrid():
+	# count particles per cell
 	numCellParticles.fill(0)
 	
 	"""
@@ -172,46 +162,43 @@ def pushParticlesApart(numIters: int):
 		firstCellParticle[_ind] -= 1 #	auto atomic
 		cellParticleIds[firstCellParticle[_ind]] = i
 
-	
-	minDist = 2 * particleRadius
-	minDist2 = minDist * minDist
-
-	for iter in range(numIters):
+@ti.kernel
+def pushParticlesApart():        		
+	#ti.loop_config(serialize=True)
+	for i in ti.ndrange(numParticles):
+		pxi, pyi = ti.cast(ti.floor(particlePos[i]* pInvSpacing), int)
+		# TODO reduce cast type
+		x0 = ti.max(pxi-1, 0)
+		y0 = ti.max(pyi-1, 0)
+		x1 = ti.min(pxi+1, pNumX-1)
+		y1 = ti.min(pyi+1, pNumY-1)
 		#ti.loop_config(serialize=True)
-		for i in ti.ndrange(numParticles):
-			pxi, pyi = ti.cast(ti.floor(particlePos[i]* pInvSpacing), int)
-			# TODO reduce cast type
-			x0 = ti.max(pxi-1, 0)
-			y0 = ti.max(pyi-1, 0)
-			x1 = ti.min(pxi+1, pNumX-1)
-			y1 = ti.min(pyi+1, pNumY-1)
-			#ti.loop_config(serialize=True)
-			for xi, yi in ti.ndrange((x0, x1), (y0, y1)):
-				first = firstCellParticle[xi*pNumY+yi]
-				last = firstCellParticle[xi*pNumY+yi+1]				
-				for j in range(first, last):
-					id = cellParticleIds[j]					
-					if id == i:
-						continue
-					#qx, qy = particlePos[id]
-					
-					#dx = qx - px 
-					#dy = qy - py
-					delta = particlePos[id] - particlePos[i]
-					#d2 = dx * dx + dy * dy
-					d2 = delta.dot(delta)
-					if (d2 > minDist2 or d2 == 0):
-						continue
-					#d = ti.sqrt(d2)
-					d = delta.norm()
-					s = 0.5 * (minDist -d) / d
-					#dx *= s
-					#dy *= s
-					delta *= s
-					#particlePos[i] -= [dx, dy]
-					#particlePos[id] += [dx, dy]
-					particlePos[i] -= delta
-					particlePos[id] += delta
+		for xi, yi in ti.ndrange((x0, x1), (y0, y1)):
+			first = firstCellParticle[xi*pNumY+yi]
+			last = firstCellParticle[xi*pNumY+yi+1]				
+			for j in range(first, last):
+				id = cellParticleIds[j]					
+				if id == i:
+					continue
+				#qx, qy = particlePos[id]
+				
+				#dx = qx - px 
+				#dy = qy - py
+				delta = particlePos[id] - particlePos[i]
+				#d2 = dx * dx + dy * dy
+				d2 = delta.dot(delta)
+				if (d2 > minDist2 or d2 == 0):
+					continue
+				#d = ti.sqrt(d2)
+				d = delta.norm()
+				s = 0.5 * (minDist -d) / d
+				#dx *= s
+				#dy *= s
+				delta *= s
+				#particlePos[i] -= [dx, dy]
+				#particlePos[id] += [dx, dy]
+				particlePos[i] -= delta
+				particlePos[id] += delta
 					
 @ti.kernel
 def handleParticleCollisions():
@@ -473,14 +460,16 @@ def update():
 	
 	for step in range(numSubSteps):
 		integrateParticles(sdt, gravity)
-		# TODO 性能问题
-		pushParticlesApart(numParticleIters)
+		countParticleInGrid()
+		# [ok] 性能问题
+		for iter in range(numParticleIters):
+			pushParticlesApart()
 		handleParticleCollisions()
 		
-		p2g()
-		updateParticleDensity(particleDensity)
-		solveIncompressibility(numPressureIters, sdt)
-		g2p()
+		#p2g()
+		#updateParticleDensity(particleDensity)
+		#solveIncompressibility(numPressureIters, sdt)
+		#g2p()
 
 gui = ti.GUI('PIC-2D', (c_width, c_height))
 
