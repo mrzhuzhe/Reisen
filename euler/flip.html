@@ -386,7 +386,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		}
 
 		transferVelocities(toGrid, flipRatio)
-		{
+		{	
+			console.log(flipRatio)
 			var n = this.fNumY;
 			var h = this.h;
 			var h1 = this.fInvSpacing;
@@ -454,11 +455,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 					var nr3 = x0*n + y1;
 
 					if (toGrid) {
+						/*
 						var pv = this.particleVel[2 * i + component];
 						f[nr0] += pv * d0;  d[nr0] += d0;
 						f[nr1] += pv * d1;  d[nr1] += d1;
 						f[nr2] += pv * d2;  d[nr2] += d2;
 						f[nr3] += pv * d3;  d[nr3] += d3;
+						*/
 					}
 					else {
 						var offset = component == 0 ? n : 1;
@@ -649,12 +652,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 			for (var step = 0; step < numSubSteps; step++) {
 				this.integrateParticles(sdt, gravity);
-				//if (separateParticles)
-				//	this.pushParticlesApart(numParticleIters); 
+				if (separateParticles)
+					this.pushParticlesApart(numParticleIters); 
 				this.handleParticleCollisions(obstacleX, abstacleY, obstacleRadius)
 				this.transferVelocities(true);
-				this.updateParticleDensity();
-				this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
+				//this.updateParticleDensity();
+				//this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
 				this.transferVelocities(false, flipRatio);
 			}
 
