@@ -506,16 +506,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		solveIncompressibility(numIters, dt, overRelaxation, compensateDrift = true) {
 
 			this.p.fill(0.0);
-			this.prevU.set(this.u);
-			this.prevV.set(this.v);
+			//this.prevU.set(this.u);
+			//this.prevV.set(this.v);
 
 			var n = this.fNumY;
-			var cp = this.density * this.h / dt;
-
-			for (var i = 0; i < this.fNumCells; i++) {
-				var u = this.u[i];
-				var v = this.v[i];
-			}
+			var cp = this.density * this.h / dt;	
 
 			for (var iter = 0; iter < numIters; iter++) {
 
@@ -543,13 +538,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						var div = this.u[right] - this.u[center] + 
 							this.v[top] - this.v[center];
 
+						/*
 						if (this.particleRestDensity > 0.0 && compensateDrift) {
 							var k = 1.0;
 							var compression = this.particleDensity[i*n + j] - this.particleRestDensity;
 							if (compression > 0.0)
 								div = div - k * compression;
 						}
-
+						*/	
 						var p = -div / s;
 						p *= overRelaxation;
 						this.p[center] += cp * p;

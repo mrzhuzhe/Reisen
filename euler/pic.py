@@ -1,6 +1,9 @@
+from turtle import right
+from types import CellType
 from xml.etree.ElementTree import PI
 from numpy import int32
 from psutil import pid_exists
+from regex import D
 import taichi as ti
 
 ti.init(arch=ti.gpu)
@@ -63,7 +66,7 @@ particleColor = ti.Vector.field(3, dtype=ti.f32, shape=numParticles)
 
 particleVel = ti.Vector.field(2, dtype=ti.f32, shape=numParticles)
 
-particleDensity = ti.field(dtype=ti.f32, shape=fNumCells)
+particleDensity = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 particleRestDensity = 0
 
 particleRadius = r
@@ -235,46 +238,53 @@ def handleParticleCollisions():
         particlePos[i][1] = y
 
 @ti.kernel
-def updateParticleDensity():
-    h1 = fInvSpacing
-    h2 = 0.5 * h
+def updateParticleDensity(d: ti.template()):
+	h1 = fInvSpacing
+	h2 = 0.5 * h
 
-    d = particleDensity
-    d.fill(0)
+	#particleDensity.fill(0)
+	d.fill(0)
+
+
+	for i in ti.ndrange(numParticles):
+		x, y = particlePos[i]
+
+		x = clamp(x, h, (fnumX-1)*h)
+		y = clamp(y, h, (fnumY-1)*h)
+
+		x0 = int(ti.floor((x-h2)*h1))
+		tx = ((x-h2)-x0*h)*h1
+		x1 = int(ti.min(x0+1, fnumX-2))
+
+		y0 = int(ti.floor((y-h2)*h1))
+		ty = ((y - h2)-y0*h)*h1
+		y1 = int(ti.min(y0+1, fnumY-2))
+
+		sx = 1 - tx
+		sy = 1 - ty
+
+		#if x0 < fnumX and y0 < fnumY: particleDensity[x0, y0] += sx * sy
+		#if x1 < fnumX and y0 < fnumY: particleDensity[x1, y0] += tx * sy
+		#if x1 < fnumX and y1 < fnumY: particleDensity[x1, y1] += tx * ty
+		#if x0 < fnumX and y1 < fnumY: particleDensity[x0, y1] += sx * ty
+
+		if x0 < fnumX and y0 < fnumY: d[x0, y0] += sx * sy
+		if x1 < fnumX and y0 < fnumY: d[x1, y0] += tx * sy
+		if x1 < fnumX and y1 < fnumY: d[x1, y1] += tx * ty
+		if x0 < fnumX and y1 < fnumY: d[x0, y1] += sx * ty
     
-    for i in ti.ndrange(numParticles):
-        x, y = particlePos[i]
+	if particleRestDensity == 0:
+		sum = 0.0
+		numFluidCells = 0
 
-        x = clamp(x, h, (fnumX-1)*h)
-        y = clamp(y, h, (fnumY-1)*h)
+		for i, j in ti.ndrange(fnumX, fnumY):
+			if cellType[i, j] == FLUID_CELL:
+				#sum += particleDensity[i, j]
+				sum += d[i, j]
+				numFluidCells += 1
 
-        x0 = ti.floor((x-h2)*h1)
-        tx = ((x-h2)-x0*h)*h1
-        x1 = ti.min(x0+1, fnumX-2)
-
-        y0 = ti.floor((y-h2)*h1)
-        ty = ((y - h2)-y0*h)*h1
-        y1 = ti.min(y0+1, fnumY-2)
-        
-        sx = 1 - tx
-        sy = 1 - ty
-
-        if x0 < fnumX and y0 < fnumY: d[x0, y0] += sx * sy
-        if x1 < fnumX and y0 < fnumY: d[x1, y0] += tx * sy
-        if x1 < fnumX and y1 < fnumY: d[x1, y1] += tx * ty
-        if x0 < fnumX and y1 < fnumY: d[x0, y1] += sx * ty
-    
-    if particleRestDensity == 0:
-        sum = 0
-        numFluidCells = 0
-
-        for i in ti.ndrange(fNumCells):
-            if cellType[i] == FLUID_CELL:
-                sum +=d[i]
-                numFluidCells += 1
-
-        if numFluidCells > 0:
-            particleRestDensity = sum / numFluidCells
+		if numFluidCells > 0:
+			particleRestDensity = sum / numFluidCells
 
 @ti.func
 def project(x, y, dx, dy):
@@ -290,11 +300,12 @@ def project(x, y, dx, dy):
 	sx = 1.0 - tx
 	sy = 1.0 - ty
 
+	# interpolation
 	d0 = sx * sy
 	d1 = tx * sy
 	d2 = tx * ty
 	d3 = sx * ty
-	return x0, x1, y0, y1, d0, d1, d2, d3
+	return ti.cast(x0, int), ti.cast(x1, int), ti.cast(y0, int), ti.cast(y1, int), d0, d1, d2, d3
 
 @ti.kernel
 def p2g():
@@ -313,15 +324,16 @@ def p2g():
 	U.fill(0)
 	V.fill(0)
 
-	for i in ti.ndrange(fNumCells):
-		cellType[i] = SOLID_CELL if S[i] == 0 else AIR_CELL
+	# intial all to air 
+	for i, j in ti.ndrange(fnumX, fnumY):
+		cellType[i, j] = SOLID_CELL if S[i, j] == 0.0 else AIR_CELL
 
+	# to fluid
 	for i in ti.ndrange(numParticles):
 		x, y =ti.floor(particlePos[i]* h1)
 		xi = clamp(x, 0, fnumX-1)
 		yi = clamp(y, 0, fnumY-1)
-		_ind = xi * fnumY + yi
-		cellType[_ind] = FLUID_CELL
+		cellType[xi, yi] = FLUID_CELL
 
 	for i in range(numParticles):
 		x, y = particlePos[i]
@@ -353,7 +365,7 @@ def p2g():
 		preV[Vx1, Vy1] += Vd2
 		preV[Vx0, Vy1] += Vd3
 
-	for i, i in ti.ndrange(fnumX, fnumY):
+	for i, j in ti.ndrange(fnumX, fnumY):
 		if dU[i, j] > 0:
 			U[i, j] /=  dU[i, j]
 		if dV[i, j] > 0:
@@ -369,7 +381,6 @@ def p2g():
 
 @ti.kernel
 def g2p():
-	h1 = fInvSpacing
 	for i in range(numParticles):
 		x, y = particlePos[i]
 		x = clamp(x, h, (fnumX-1)*h)
@@ -378,12 +389,70 @@ def g2p():
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
 		
+		Uvalid0 = 1 if cellType[Ux0, Uy0] != AIR_CELL or cellType[Ux0-1 , Uy0] != AIR_CELL else 0
+		Uvalid1 = 1 if cellType[Ux1, Uy0] != AIR_CELL or cellType[Ux1-1 , Uy0] != AIR_CELL else 0
+		Uvalid2 = 1 if cellType[Ux1, Uy1] != AIR_CELL or cellType[Ux1-1 , Uy1] != AIR_CELL else 0
+		Uvalid3 = 1 if cellType[Ux0, Uy1] != AIR_CELL or cellType[Ux0-1 , Uy1] != AIR_CELL else 0
+
+		Ud = Uvalid0 * Ud0 + Uvalid1 * Ud1 + Uvalid2 * Ud2 + Uvalid3 * Ud3
+
+		if (Ud > 0.0):
+			particleVel[i][0] = (Uvalid0 * Ud0 * U[Ux0, Uy0] 
+			+ Uvalid1 * Ud1 * U[Ux1, Uy0] 
+			+ Uvalid2 * Ud2 * U[Ux1, Uy1] 
+			+ Uvalid3 * Ud3 * U[Ux0, Uy1]) / Ud
+			
+
+		Vvalid0 = 1 if cellType[Vx0, Vy0] != AIR_CELL or cellType[Vx0 , Vy0-1] != AIR_CELL else 0
+		Vvalid1 = 1 if cellType[Vx1, Vy0] != AIR_CELL or cellType[Vx1 , Vy0-1] != AIR_CELL else 0
+		Vvalid2 = 1 if cellType[Vx1, Vy1] != AIR_CELL or cellType[Vx1 , Vy1-1] != AIR_CELL else 0
+		Vvalid3 = 1 if cellType[Vx0, Vy1] != AIR_CELL or cellType[Vx0 , Vy1-1] != AIR_CELL else 0
+
+		Vd = Vvalid0 * Vd0 + Vvalid1 * Vd1 + Vvalid2 * Vd2 + Vvalid3 * Vd3		
+
+		if (Vd > 0.0):
+			particleVel[i][1] = (Vvalid0 * Vd0 * V[Vx0, Vy0] 
+			+ Vvalid1 * Vd1 * V[Vx1, Vy0] 
+			+ Vvalid2 * Vd2 * V[Vx1, Vy1] 
+			+ Vvalid3 * Vd3 * V[Vx0, Vy1]) / Vd
 		
 
 @ti.kernel
-def solveIncompressibility(numIters, dt, overRelaxation, compensateDrift = True):
-    
-    pass
+def solveIncompressibility(numIters: int, dt: float):
+	P.fill(0.0)
+
+	cp  = density * h / dt
+
+	for iter in range(numIters):
+		for i, j in ti.ndrange((1, fnumX-1), (1, fnumY)):
+			center = [i, j]			
+			if cellType[center] != FLUID_CELL:
+				continue
+			left = [i-1, j]
+			right = [i+1, j]
+			bottom = [i, j-1]
+			top = [i, j+1]
+			
+			sx0 = S[left]
+			sx1 = S[right]
+			sy0 = S[bottom]
+			sy1 = S[top]
+			s = sx0 + sx1 +sy0 + sy1
+			if s == 0.0:
+				continue
+			div = U[right] - U[center] + V[top] - V[center]
+
+			#if (particleRestDensity > 0.0)
+			p = -div/s 
+			#p = p * 1.9
+
+			P[center] += cp * p
+			U[center] -= sx0 * p
+			U[right] += sx1 * p
+			V[center] -= sy0 * p
+			V[top] += sy1 * p
+
+
 
 def update():
 	numSubSteps = 1
@@ -391,12 +460,13 @@ def update():
 	
 	for step in range(numSubSteps):
 		integrateParticles(sdt, gravity)
+		# TODO 性能问题
 		#pushParticlesApart(numParticleIters)
 		handleParticleCollisions()
 		p2g()
-		#updateParticleDensity()
-		#solveIncompressibility(numPressureIters, sdt)
-		#g2p()
+		updateParticleDensity(particleDensity)
+		solveIncompressibility(numPressureIters, sdt)
+		g2p()
 
 gui = ti.GUI('PIC-2D', (c_width, c_height))
 
