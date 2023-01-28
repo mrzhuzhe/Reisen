@@ -332,6 +332,7 @@ def p2g():
 		if cellType[xi, yi]  == AIR_CELL:	# seems no need
 			cellType[xi, yi] = FLUID_CELL
 
+	# project
 	for i in ti.ndrange(numParticles):
 		x, y = particlePos[i]
 		x = clamp(x, h, (fnumX-1)*h)
@@ -339,6 +340,7 @@ def p2g():
 		
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
+		
 		#"""
 		pv0 = particleVel[i][0]
 		U[Ux0, Uy0] += pv0 * Ud0
@@ -350,7 +352,8 @@ def p2g():
 		dU[Ux1, Uy0] += Ud1
 		dU[Ux1, Uy1] += Ud2
 		dU[Ux0, Uy1] += Ud3
-
+		
+		#"""
 		pv1 = particleVel[i][1]
 		V[Vx0, Vy0] += pv1 * Vd0
 		V[Vx1, Vy0] += pv1 * Vd1
@@ -389,10 +392,10 @@ def g2p():
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
 		
-		Uvalid0 = 1 if (cellType[Ux0, Uy0] != AIR_CELL or cellType[Ux0-1 , Uy0] != AIR_CELL) else 0
-		Uvalid1 = 1 if (cellType[Ux1, Uy0] != AIR_CELL or cellType[Ux1-1 , Uy0] != AIR_CELL) else 0
-		Uvalid2 = 1 if (cellType[Ux1, Uy1] != AIR_CELL or cellType[Ux1-1 , Uy1] != AIR_CELL) else 0
-		Uvalid3 = 1 if (cellType[Ux0, Uy1] != AIR_CELL or cellType[Ux0-1 , Uy1] != AIR_CELL) else 0
+		Uvalid0 = 1.0 if (cellType[Ux0, Uy0] != AIR_CELL or cellType[Ux0-1 , Uy0] != AIR_CELL) else 0.0
+		Uvalid1 = 1.0 if (cellType[Ux1, Uy0] != AIR_CELL or cellType[Ux1-1 , Uy0] != AIR_CELL) else 0.0
+		Uvalid2 = 1.0 if (cellType[Ux1, Uy1] != AIR_CELL or cellType[Ux1-1 , Uy1] != AIR_CELL) else 0.0
+		Uvalid3 = 1.0 if (cellType[Ux0, Uy1] != AIR_CELL or cellType[Ux0-1 , Uy1] != AIR_CELL) else 0.0
 
 		Ud = Uvalid0 * Ud0 + Uvalid1 * Ud1 + Uvalid2 * Ud2 + Uvalid3 * Ud3
 
@@ -403,10 +406,10 @@ def g2p():
 			+ Uvalid3 * Ud3 * U[Ux0, Uy1]) / Ud
 			
 
-		Vvalid0 = 1 if (cellType[Vx0, Vy0] != AIR_CELL or cellType[Vx0 , Vy0-1] != AIR_CELL) else 0
-		Vvalid1 = 1 if (cellType[Vx1, Vy0] != AIR_CELL or cellType[Vx1 , Vy0-1] != AIR_CELL) else 0
-		Vvalid2 = 1 if (cellType[Vx1, Vy1] != AIR_CELL or cellType[Vx1 , Vy1-1] != AIR_CELL) else 0
-		Vvalid3 = 1 if (cellType[Vx0, Vy1] != AIR_CELL or cellType[Vx0 , Vy1-1] != AIR_CELL) else 0
+		Vvalid0 = 1.0 if (cellType[Vx0, Vy0] != AIR_CELL or cellType[Vx0 , Vy0-1] != AIR_CELL) else 0.0
+		Vvalid1 = 1.0 if (cellType[Vx1, Vy0] != AIR_CELL or cellType[Vx1 , Vy0-1] != AIR_CELL) else 0.0
+		Vvalid2 = 1.0 if (cellType[Vx1, Vy1] != AIR_CELL or cellType[Vx1 , Vy1-1] != AIR_CELL) else 0.0
+		Vvalid3 = 1.0 if (cellType[Vx0, Vy1] != AIR_CELL or cellType[Vx0 , Vy1-1] != AIR_CELL) else 0.0
 
 		Vd = Vvalid0 * Vd0 + Vvalid1 * Vd1 + Vvalid2 * Vd2 + Vvalid3 * Vd3		
 
