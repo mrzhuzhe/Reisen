@@ -387,7 +387,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 		transferVelocities(toGrid, flipRatio)
 		{	
-			console.log(flipRatio)
+			//console.log(flipRatio)
 			var n = this.fNumY;
 			var h = this.h;
 			var h1 = this.fInvSpacing;
@@ -656,8 +656,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 					this.pushParticlesApart(numParticleIters); 
 				this.handleParticleCollisions(obstacleX, abstacleY, obstacleRadius)
 				this.transferVelocities(true);
-				//this.updateParticleDensity();
-				//this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
+				this.updateParticleDensity();
+				this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
 				this.transferVelocities(false, flipRatio);
 			}
 

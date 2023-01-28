@@ -1,4 +1,5 @@
 import taichi as ti
+import taichi.math as tm
 
 ti.init(arch=ti.gpu)
 
@@ -79,6 +80,8 @@ print("pNumX pNumY", pNumX, pNumY)
 minDist = 2 * particleRadius
 minDist2 = minDist * minDist
 
+"""
+# [TODO] there is a huge bug if-else in return will be eliminate
 @ti.func
 def clamp(x: float, min: float, max: float):
 	ret = x
@@ -87,6 +90,15 @@ def clamp(x: float, min: float, max: float):
 	if x > max:
 		ret = max
 	return ti.cast(ret, int) 
+"""
+"""
+@ti.func
+def clamp(x: float, min: float, max: float):
+	#print("bef", x, min, max)
+	ti.math.clamp(x, min, max)
+	#print("after", x, min, max)
+	return ti.cast(x, int)
+"""
 
 @ti.kernel
 def init():
@@ -126,9 +138,12 @@ def countParticleInGrid():
 	#ti.loop_config(serialize=True)
 	for i in ti.ndrange(numParticles):
 		x, y = ti.floor(particlePos[i] * pInvSpacing)
-		xi = clamp(x, 0, pNumX-1)
-		yi = clamp(y, 0, pNumY-1)
-		numCellParticles[xi*pNumY+yi] += 1 # auto atomic add
+		#xi = clamp(x, 0, pNumX-1)
+		#yi = clamp(y, 0, pNumY-1)
+		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([pNumX-1, pNumX-1]))
+		#print(xi, yi)
+		_ind = ti.cast(x*pNumY+y, int)
+		numCellParticles[_ind] += 1 # auto atomic add
 		
 		
 	# partial sums 
@@ -154,9 +169,11 @@ def countParticleInGrid():
 	for i in ti.ndrange(numParticles):
 		#x, y = particlePos[i]
 		x, y = ti.floor(particlePos[i] * pInvSpacing)
-		xi = clamp(x, 0, pNumX-1)
-		yi = clamp(y, 0, pNumY-1)
-		_ind = xi*pNumY+yi
+		#xi = clamp(x, 0, pNumX-1)
+		#yi = clamp(y, 0, pNumY-1)
+		#_ind = xi*pNumY+yi
+		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([pNumX-1, pNumX-1]))
+		_ind = ti.cast(x*pNumY+y, int)
 		firstCellParticle[_ind] -= 1 #	auto atomic
 		cellParticleIds[firstCellParticle[_ind]] = i
 
@@ -240,8 +257,9 @@ def updateParticleDensity(d: ti.template()):
 	for i in ti.ndrange(numParticles):
 		x, y = particlePos[i]
 
-		x = clamp(x, h, (fnumX-1)*h)
-		y = clamp(y, h, (fnumY-1)*h)
+		#x = clamp(x, h, (fnumX-1)*h)
+		#y = clamp(y, h, (fnumY-1)*h)
+		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))		
 
 		x0 = int(ti.floor((x-h2)*h1))
 		tx = ((x-h2)-x0*h)*h1
@@ -284,6 +302,7 @@ def updateParticleDensity(d: ti.template()):
 def project(x, y, dx, dy):
 	h1 = fInvSpacing
 	x0 = ti.min(ti.floor((x - dx)*h1), fnumX-2)
+	#print(x, dx)
 	tx = (x - dx  - x0*h) * h1
 	x1 = ti.min(x0+1, fnumX-2)
 
@@ -300,6 +319,8 @@ def project(x, y, dx, dy):
 	d2 = tx * ty
 	d3 = sx * ty
 	return ti.cast(x0, int), ti.cast(x1, int), ti.cast(y0, int), ti.cast(y1, int), d0, d1, d2, d3
+
+#	https://www.youtube.com/watch?v=XmzBREkK8kY
 
 @ti.kernel
 def p2g():
@@ -326,21 +347,29 @@ def p2g():
 	# to fluid
 	for i in ti.ndrange(numParticles):
 		# which grid
-		x, y =ti.floor(particlePos[i]* h1)
-		xi = clamp(x, 0, fnumX-1)
-		yi = clamp(y, 0, fnumY-1)
-		if cellType[xi, yi]  == AIR_CELL:	# seems no need
-			cellType[xi, yi] = FLUID_CELL
+		x, y = ti.floor(particlePos[i]* h1)
+		#xi = clamp(x, 0, fnumX-1)
+		#yi = clamp(y, 0, fnumY-1)
+		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1), (fnumY-1)]))	
+		if cellType[int(x), int(y)]  == AIR_CELL:	# seems no need
+			cellType[int(x), int(y)] = FLUID_CELL
 
 	# project
 	for i in ti.ndrange(numParticles):
 		x, y = particlePos[i]
-		x = clamp(x, h, (fnumX-1)*h)
-		y = clamp(y, h, (fnumY-1)*h)
-		
+		#x = clamp(x, h, (fnumX-1)*h)
+		#y = clamp(y, h, (fnumY-1)*h)
+
+		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))			
+
+		#if x> 0.0 or y > 0.0: print(x, y)
+
+		#if x != 0 or y != 0 :print(x, y)
+
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
-		
+		#print(Vx0, Vx1, Vy0, Vy1)
+
 		#"""
 		pv0 = particleVel[i][0]
 		U[Ux0, Uy0] += pv0 * Ud0
@@ -364,14 +393,26 @@ def p2g():
 		dV[Vx1, Vy0] += Vd1
 		dV[Vx1, Vy1] += Vd2
 		dV[Vx0, Vy1] += Vd3
+		#if particleVel[i][1] < 0.0:print(Vd0, Vd1, Vd2, Vd3)
+		#if particleVel[i][1] < 0.0: 
+		#	print(V[Vx0, Vy0], V[Vx1, Vy0], V[Vx1, Vy1], V[Vx0, Vy1])
+		#	print(dV[Vx0, Vy0], dV[Vx1, Vy0], dV[Vx1, Vy1], dV[Vx0, Vy1])
+		#print(Vd0, Vd1, Vd2, Vd3)
+		#if particleVel[i][1] < 0.0: print(particleVel[i])
+		#if V[Vx0, Vy0] != 0.0: print(Vx0, Vy0, V[Vx0, Vy0])
+		#if V[Vx1, Vy0] != 0.0: print(Vx1, Vy0, V[Vx1, Vy0])
+		#if V[Vx1, Vy1] != 0.0: print(Vx1, Vy1, V[Vx1, Vy1])
+		#if V[Vx0, Vy1] != 0.0: print(Vx0, Vy1, V[Vx0, Vy1])
 		#"""
 		
 
 	for i, j in ti.ndrange(fnumX, fnumY):
-		if dU[i, j] > 0:
-			U[i, j] /=  dU[i, j]
-		if dV[i, j] > 0:
-			V[i, j] /=  dV[i, j]
+		#if V[i, j] != 0.0 : print(i, j, U[i, j], V[i, j])
+		if dU[i, j] > 0.0:
+			U[i, j] = U[i, j] / dU[i, j]
+		if dV[i, j] > 0.0:
+			V[i, j] = V[i, j] / dV[i, j]		
+		#if V[i, j] != 0.0 : print(i, j, U[i, j], V[i, j])
 			
 	# no solid
 	for i,j in ti.ndrange(fnumX, fnumY):
@@ -386,9 +427,11 @@ def p2g():
 def g2p():
 	for i in ti.ndrange(numParticles):
 		x, y = particlePos[i]
-		x = clamp(x, h, (fnumX-1)*h)
-		y = clamp(y, h, (fnumY-1)*h)
+		#x = clamp(x, h, (fnumX-1)*h)
+		#y = clamp(y, h, (fnumY-1)*h)
 		
+		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))	
+
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
 		
@@ -418,6 +461,7 @@ def g2p():
 			+ Vvalid1 * Vd1 * V[Vx1, Vy0] 
 			+ Vvalid2 * Vd2 * V[Vx1, Vy1] 
 			+ Vvalid3 * Vd3 * V[Vx0, Vy1]) / Vd
+			#if particleVel[i][1] < 0.0: print("after", V[Vx0, Vy0], V[Vx1, Vy0], V[Vx1, Vy1], V[Vx0, Vy1])
 		
 
 @ti.kernel
@@ -465,13 +509,13 @@ def update():
 		handleParticleCollisions()
 		
 		p2g()
-		"""
+		#"""
 		updateParticleDensity(particleDensity)
 		P.fill(0.0)
 		cp  = density * h / sdt
 		for iter in range(numPressureIters):
 			solveIncompressibility(cp)
-		"""
+		#"""
 		
 		g2p()
 
