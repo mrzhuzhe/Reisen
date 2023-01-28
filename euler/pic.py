@@ -517,7 +517,7 @@ def update():
 		P.fill(0.0)
 		cp  = density * h / sdt
 		#print(cp)
-		# time step bug
+		# [TODO] time step and grid size bug
 		for iter in range(numPressureIters):
 			solveIncompressibility(cp)
 		
