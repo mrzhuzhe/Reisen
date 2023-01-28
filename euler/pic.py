@@ -13,7 +13,8 @@ AIR_CELL = 1
 SOLID_CELL = 2
 
 density = 1000
-dt = 1 / 60
+#dt = 1 / 60
+dt = 1/120
 res = 100
 numPressureIters = 50
 numParticleIters = 2
@@ -28,7 +29,7 @@ numY = 100
 spacing = 1 / res
 fnumX = int(1 / spacing + 1) 
 fnumY = int(1 / spacing + 1)
-h = 1 / fnumX
+h = 1 / fnumX 
 h2 = 0.5 * h
 fInvSpacing = fnumX
 
@@ -60,6 +61,7 @@ particleDensity = ti.field(dtype=ti.f32, shape=(fnumX, fnumY))
 #particleRestDensity = 0
 
 r =  0.3 * h
+print("r", r)
 particleRadius = r
 pInvSpacing = 1.0 / (2.2 * particleRadius)
 
@@ -466,7 +468,7 @@ def g2p():
 
 @ti.kernel
 def solveIncompressibility(cp: float):	
-	for i, j in ti.ndrange((1, fnumX-1), (1, fnumY)):
+	for i, j in ti.ndrange((1, fnumX-1), (1, fnumY-1)):
 		center = [i, j]			
 		if cellType[center] != FLUID_CELL:
 			continue
@@ -474,7 +476,7 @@ def solveIncompressibility(cp: float):
 		right = [i+1, j]
 		bottom = [i, j-1]
 		top = [i, j+1]
-		
+
 		sx0 = S[left]
 		sx1 = S[right]
 		sy0 = S[bottom]
@@ -483,9 +485,9 @@ def solveIncompressibility(cp: float):
 		if s == 0.0:
 			continue
 		div = U[right] - U[center] + V[top] - V[center]
-
+		#print(s)
 		#if (particleRestDensity > 0.0)
-		p = -div/s 
+		p = -div/s
 		#p = p * 1.9
 
 		P[center] += cp * p
@@ -493,6 +495,7 @@ def solveIncompressibility(cp: float):
 		U[right] += sx1 * p
 		V[center] -= sy0 * p
 		V[top] += sy1 * p
+		#print(U[center], U[right], V[center], V[top])
 
 
 
@@ -509,13 +512,14 @@ def update():
 		handleParticleCollisions()
 		
 		p2g()
-		#"""
-		updateParticleDensity(particleDensity)
+		
+		#updateParticleDensity(particleDensity)
 		P.fill(0.0)
 		cp  = density * h / sdt
+		#print(cp)
+		# time step bug
 		for iter in range(numPressureIters):
 			solveIncompressibility(cp)
-		#"""
 		
 		g2p()
 
@@ -529,7 +533,7 @@ while gui.running:
 
 	pos = particlePos.to_numpy()
 	#print(pos * c_width)
-	gui.circles(pos , radius=2)
+	gui.circles(pos , radius=3)
 
 	#gui.set_image(pixels)
 	gui.show()

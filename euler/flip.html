@@ -351,6 +351,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				if (x0 < this.fNumX && y1 < this.fNumY) d[x0 * n + y1] += sx * ty;
 			}
 
+			/*
 			if (this.particleRestDensity == 0.0) {
 				var sum = 0.0;
 				var numFluidCells = 0;
@@ -365,6 +366,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				if (numFluidCells > 0)
 					this.particleRestDensity = sum / numFluidCells;
 			}
+			*/
 
 // 			for (var xi = 1; xi < this.fNumX; xi++) {
 // 				for (var yi = 1; yi < this.fNumY; yi++) {
@@ -514,7 +516,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 			var n = this.fNumY;
 			var cp = this.density * this.h / dt;	
-
+			console.log("cp", cp)
 			for (var iter = 0; iter < numIters; iter++) {
 
 				for (var i = 1; i < this.fNumX-1; i++) {
@@ -550,7 +552,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 						}
 						*/	
 						var p = -div / s;
-						p *= overRelaxation;
+						//p *= overRelaxation;
 						this.p[center] += cp * p;
 
 						this.u[center] -= sx0 * p;
@@ -656,13 +658,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 					this.pushParticlesApart(numParticleIters); 
 				this.handleParticleCollisions(obstacleX, abstacleY, obstacleRadius)
 				this.transferVelocities(true);
-				this.updateParticleDensity();
+				//this.updateParticleDensity();
 				this.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
 				this.transferVelocities(false, flipRatio);
 			}
 
-			this.updateParticleColors();
-			this.updateCellColors();
+			//this.updateParticleColors();
+			//this.updateCellColors();
 
 		}
 	}
