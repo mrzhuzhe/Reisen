@@ -1,5 +1,8 @@
+# to 3d https://github.com/ethz-pbs21/SandyFluid
+
 import taichi as ti
 import taichi.math as tm
+
 
 ti.init(arch=ti.gpu)
 
@@ -13,7 +16,7 @@ AIR_CELL = 1
 SOLID_CELL = 2
 
 density = 1000
-dt = 1 / 60
+dt = 1 / 120
 res = 100
 numPressureIters = 50
 numParticleIters = 2
