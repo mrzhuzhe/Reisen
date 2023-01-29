@@ -85,7 +85,7 @@ print("pNumX pNumY", pNumX, pNumY)
 minDist = 2 * particleRadius
 minDist2 = minDist * minDist
 
-"""
+#"""
 # [TODO] there is a huge bug if-else in return will be eliminate
 @ti.func
 def clamp(x: float, min: float, max: float):
@@ -95,7 +95,7 @@ def clamp(x: float, min: float, max: float):
 	if x > max:
 		ret = max
 	return ti.cast(ret, int) 
-"""
+#"""
 """
 @ti.func
 def clamp(x: float, min: float, max: float):
@@ -353,8 +353,8 @@ def p2g():
 	for i in ti.ndrange(numParticles):
 		# which grid
 		x, y = ti.floor(particlePos[i]* h1)
-		#xi = clamp(x, 0, fnumX-1)
-		#yi = clamp(y, 0, fnumY-1)
+		#x = clamp(x, 0, fnumX-1)
+		#y = clamp(y, 0, fnumY-1)
 		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1), (fnumY-1)]))	
 		if cellType[int(x), int(y)]  == AIR_CELL:	# seems no need
 			cellType[int(x), int(y)] = FLUID_CELL
@@ -365,7 +365,7 @@ def p2g():
 		#x = clamp(x, h, (fnumX-1)*h)
 		#y = clamp(y, h, (fnumY-1)*h)
 
-		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))			
+		tm.clamp(ti.Vector([x, y]), h, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))			
 
 		#if x> 0.0 or y > 0.0: print(x, y)
 
@@ -435,7 +435,7 @@ def g2p():
 		#x = clamp(x, h, (fnumX-1)*h)
 		#y = clamp(y, h, (fnumY-1)*h)
 		
-		tm.clamp(ti.Vector([x, y]), 0, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))	
+		tm.clamp(ti.Vector([x, y]), h, ti.Vector([(fnumX-1)*h, (fnumY-1)*h]))	
 
 		Ux0, Ux1, Uy0, Uy1, Ud0, Ud1, Ud2, Ud3 = project(x, y, 0, h2)
 		Vx0, Vx1, Vy0, Vy1, Vd0, Vd1, Vd2, Vd3 = project(x, y, h2, 0)
