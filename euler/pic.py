@@ -1,5 +1,8 @@
+# to 3d https://github.com/ethz-pbs21/SandyFluid
+
 import taichi as ti
 import taichi.math as tm
+
 
 ti.init(arch=ti.gpu)
 
