@@ -515,7 +515,7 @@ def update():
 		
 		#updateParticleDensity(particleDensity)
 		P.fill(0.0)
-		cp  = density * h / sdt
+		cp  = density * h / sdt 
 		#print(cp)
 		# [TODO] time step and grid size bug
 		for iter in range(numPressureIters):
