@@ -1,6 +1,7 @@
 import taichi as ti
 
-ti.init(arch="gpu")
+#ti.init(arch="gpu")
+ti.init(arch=ti.vulkan)
 # [TODO] there is a huge bug if-else in return will be eliminate
 @ti.func
 def clamp(x: float, min: float, max: float):
