@@ -14,6 +14,7 @@ dt = 0.01
 g = ti.Vector((0, 0, -9.81), ti.f32)
 rho = 1000.0 # density
 grid_size = (64, 64, 64)
+dx = 0.5 # grid quantitle size
 reconstruction_resolution = (100, 100, 100)
 reconstruction_threshold = 0.75
 reconstruct_radius = 0.1
@@ -31,6 +32,7 @@ b_mu = 0.8 # boundary friction
 pressure = ti.field(f32, shape=grid_size)
 cell_type = ti.field(i32, grid_size)
 cell_type.fill(AIR)
+
 #   create solid boundary 
 for i, j in ti.ndrange(grid_size[0], grid_size[1]):
     cell_type[i, j, 0] = SOLID
@@ -56,7 +58,6 @@ grid_w_z = ti.field(f32, shape=(grid_size[0], grid_size[1], grid_size[2]+1))
 
 divergence = ti.field(f32, shape=grid_size)
 new_pressure = ti.field(f32, shape=grid_size)
-
 
 #
 
@@ -90,13 +91,147 @@ def clear_grid():
     grid_w_y.fill(0.0)
     grid_w_z.fill(0.0)
 
+
 @ti.kernel
 def p2g():
     for p in pos:
         x = pos[p]
         v = vel[p]
-
+        idx = x/dx
+        base = ti.cast(ti.floor(idx), i32)
+        frac = idx - base 
+        interp_grid(base, frac, v)
     
+    for i, j, k in grid_v_x:
+        v = grid_v_x[i, j, k]
+        w = grid_w_x[i, j, k]
+        grid_v_x[i, j, k] = v / w if w > 0.0 else 0.0
+
+    for i, j, k in grid_v_y:
+        v = grid_v_y[i, j, k]
+        w = grid_w_y[i, j, k]
+        grid_v_y[i, j, k] = v / w if w > 0.0 else 0.0
+
+    for i, j, k in grid_v_z:
+        v = grid_v_z[i, j, k]
+        w = grid_w_z[i, j, k]
+        grid_v_z[i, j, k] = v / w if w > 0.0 else 0.0
+
+"""
+
+#quadratic B-spline 
+0.75-x^2                |x| in [0, 0.5]
+0.5*(1.5-|x|)^2         |x| in [0.5, 1.5]
+0                       |x| above 1.5
+
+"""
+
+@ti.func
+def quadratic_kernel(x):
+    w = ti.Vector([0.0 for _ in range(3)])
+    for i in range(3): 
+        if x[i] < 0.5:
+            w[i] = 0.75 - x[i]**2
+        elif x[i] < 1.5:
+            w[i] = 0.5 * (1.5-x[i])**2
+        else:
+            w[i] = 0.0
+    return w
+
+@ti.func
+def interp_grid(base, frac, vp):
+    
+    # Index on sides
+    idx_side = ti.Vector([base-1, base, base+1, base+2])
+
+    # Weight on sides
+    w_side = ti.Vector([quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)])
+    
+    # Index on center 
+    idx_center = ti.Vector([base-1, base, base+1])
+
+    # weight on center 
+    w_center= ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
+    
+    print(w_side[1].x)
+
+    """
+    for i, j, k in ti.ndrange(4, 3, 3):
+        w = w_side[i].x * w_center[j].y * w_center[k].z
+        idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
+        _dvx = vp * w
+        grid_v_x[idx] += _dvx
+        grid_w_x[idx] += w
+        
+
+    for i, j, k in ti.ndrange(3, 4, 3):
+        w = w_center[i].x * w_side[j].y * w_center[k].z
+        idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
+        grid_v_y[idx] += vp.y *w
+        grid_w_y[idx] += w
+
+    for i, j, k in ti.ndrange(3, 3, 4):
+        w = w_center[i].x * w_center[j].y * w_side[k].z
+        idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
+        grid_v_z[idx] += vp.z * w
+        grid_w_z[idx] += w
+    """
+    
+
+@ti.kernel
+def g2p():
+    for p in pos:
+        x = pos[p]
+        idx = x/dx
+        base = ti.cast(ti.floor(idx), i32)
+        frac = idx - base   
+        interp_particle(base, frac, p)
+
+@ti.func
+def interp_particle(base, frac, p):
+    # Index on sides
+    idx_side = [base-1, base, base+1, base+2]
+
+    # Weight on sides
+    w_side = [quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)]
+    
+    # Index on centers
+    idx_center = [base-1, base, base+1]
+
+    # Weight on centers
+    w_center = [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
+
+    wx = 0.0
+    wy = 0.0
+    wz = 0.0
+    vx = 0.0
+    vy = 0.0
+    vz = 0.0
+
+    for i, j, k in ti.ndrange(4, 3, 3):
+        w = w_side[i].x * w_center[j].y * w_center[k].z
+        idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
+        vtemp = grid_v_x[idx] * w
+        vx += vtemp
+        wx += w
+
+    for i, j, k in ti.ndrange(3, 4, 3):
+        w = w_center[i].x * w_side[j].y * w_center[k].z
+        idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
+        vtemp = grid_v_y * w
+        vy += vtemp
+        wy += w
+
+    for i, j, k in ti.ndrange(3, 3, 4):
+        w = w_center[i].x * w_center[j].y * w_side[k].z
+        idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
+        vtemp = grid_v_z[idx] * w
+        vz += vtemp
+        wz += w
+
+    vel[p] = ti.Vector([vx/wx, wy/wy, vz/wz])
+
+
 @ti.kernel
 def apply_force():
     for i, j, k in grid_v_z:
@@ -132,7 +267,7 @@ def advection_particle():
 def update():
     apply_force()
     boundary_condition()
-    #p2g()
+    p2g()
     #solve_imcompressive()
     #g2p()
     advection_particle()
