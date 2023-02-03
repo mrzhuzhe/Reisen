@@ -4,7 +4,7 @@ import taichi as ti
 import taichi.math as tm
 
 
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.vulkan)
 
 c_width = 1200
 c_height = 1200
@@ -16,8 +16,8 @@ AIR_CELL = 1
 SOLID_CELL = 2
 
 density = 1000
-#dt = 1 / 60
-dt = 1/120
+dt = 1 / 60 # [TODO] this may because smaller step have less dissipation in energe
+#dt = 1/120
 res = 100
 numPressureIters = 50
 numParticleIters = 2
