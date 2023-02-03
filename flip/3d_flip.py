@@ -5,7 +5,7 @@ import taichi.math as tm
 
 f32 = ti.f32
 i32 = ti.i32
-ti.init(arch=ti.gpu) 
+ti.init(arch=ti.cuda) 
 
 n = 100
 numSteps = 1
@@ -99,8 +99,8 @@ def p2g():
         v = vel[p]
         idx = x/dx
         base = ti.cast(ti.floor(idx), i32)
-        frac = idx - base 
-        interp_grid(base, frac, v)
+        frac = idx - base         
+        #interp_grid(base, frac, v)
     
     for i, j, k in grid_v_x:
         v = grid_v_x[i, j, k]
@@ -153,14 +153,10 @@ def interp_grid(base, frac, vp):
     # weight on center 
     w_center= ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
     
-    print(w_side[1].x)
-
-    """
     for i, j, k in ti.ndrange(4, 3, 3):
         w = w_side[i].x * w_center[j].y * w_center[k].z
         idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
-        _dvx = vp * w
-        grid_v_x[idx] += _dvx
+        grid_v_x[idx] += vp.x * w
         grid_w_x[idx] += w
         
 
@@ -175,7 +171,6 @@ def interp_grid(base, frac, vp):
         idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
         grid_v_z[idx] += vp.z * w
         grid_w_z[idx] += w
-    """
     
 
 @ti.kernel
@@ -184,22 +179,22 @@ def g2p():
         x = pos[p]
         idx = x/dx
         base = ti.cast(ti.floor(idx), i32)
-        frac = idx - base   
+        frac = idx - base           
         interp_particle(base, frac, p)
 
 @ti.func
 def interp_particle(base, frac, p):
     # Index on sides
-    idx_side = [base-1, base, base+1, base+2]
+    idx_side = ti.Vector([base-1, base, base+1, base+2])
 
     # Weight on sides
-    w_side = [quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)]
+    w_side = ti.Vector([quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)])
     
     # Index on centers
-    idx_center = [base-1, base, base+1]
+    idx_center = ti.Vector([base-1, base, base+1])
 
     # Weight on centers
-    w_center = [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
+    w_center = ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
 
     wx = 0.0
     wy = 0.0
@@ -214,11 +209,10 @@ def interp_particle(base, frac, p):
         vtemp = grid_v_x[idx] * w
         vx += vtemp
         wx += w
-
     for i, j, k in ti.ndrange(3, 4, 3):
         w = w_center[i].x * w_side[j].y * w_center[k].z
         idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
-        vtemp = grid_v_y * w
+        vtemp = grid_v_y[idx] * w
         vy += vtemp
         wy += w
 
@@ -269,7 +263,7 @@ def update():
     boundary_condition()
     p2g()
     #solve_imcompressive()
-    #g2p()
+    g2p()
     advection_particle()
 
 
@@ -292,12 +286,16 @@ scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
 
 
 init()
+
+
 while window.running:
     ti.deactivate_all_snodes()  
     camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
  
     scene.set_camera(camera)
     
+
+
     for s in range(numSteps):
         update()    
     
