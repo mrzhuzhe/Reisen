@@ -312,7 +312,7 @@ def compute_divergence():
 
 @ti.func
 def is_valid(i, j, k):
-    return 0 <= i < grid_size[0] and 0 <= i < grid_size[1] and 0 <= i < grid_size[2]
+    return 0 <= i < grid_size[0] and 0 <= j < grid_size[1] and 0 <= k < grid_size[2]
 
 @ti.func
 def is_solid(i, j, k):
