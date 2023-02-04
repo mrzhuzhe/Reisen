@@ -1,13 +1,10 @@
-from matplotlib.pyplot import grid
-from sklearn.preprocessing import KernelCenterer
 import taichi as ti
 import taichi.math as tm
 
 f32 = ti.f32
 i32 = ti.i32
-ti.init(arch=ti.cuda) 
+ti.init(arch=ti.gpu) 
 
-n = 100
 numSteps = 1
 particleRadius = 0.05
 dt = 0.01
@@ -79,7 +76,7 @@ def init():
         i = pl // (particle_init_size[2] * particle_init_size[1]) % particle_init_size[0] + range_min[0]
         if cell_type[i, j, k] != SOLID:
             cell_type[i, j, k] = FLUID
-        pos[p] = (ti.Vector([i, j, k]) + ti.Vector([ti.random(), ti.random(), ti.random()])) * 0.5
+        pos[p] = (ti.Vector([i, j, k]) + ti.Vector([ti.random(), ti.random(), ti.random()])) * dx
 
 @ti.kernel
 def clear_grid():
@@ -100,7 +97,7 @@ def p2g():
         idx = x/dx
         base = ti.cast(ti.floor(idx), i32)
         frac = idx - base         
-        #interp_grid(base, frac, v)
+        interp_grid(base, frac, v)
     
     for i, j, k in grid_v_x:
         v = grid_v_x[i, j, k]
@@ -142,35 +139,48 @@ def quadratic_kernel(x):
 def interp_grid(base, frac, vp):
     
     # Index on sides
-    idx_side = ti.Vector([base-1, base, base+1, base+2])
+    #idx_side = ti.Vector([base-1, base, base+1, base+2])
+    idx_side = [base-1, base, base+1, base+2]
 
     # Weight on sides
-    w_side = ti.Vector([quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)])
+    #w_side = ti.Vector([quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)])
+    w_side = [quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)]
     
     # Index on center 
-    idx_center = ti.Vector([base-1, base, base+1])
+    #idx_center = ti.Vector([base-1, base, base+1])
+    idx_center = [base-1, base, base+1]
 
     # weight on center 
-    w_center= ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
-    
-    for i, j, k in ti.ndrange(4, 3, 3):
-        w = w_side[i].x * w_center[j].y * w_center[k].z
-        idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
-        grid_v_x[idx] += vp.x * w
-        grid_w_x[idx] += w
+    #w_center= ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
+    w_center= [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
+
+    #for i, j, k in ti.ndrange(4, 3, 3):
+    for i in ti.static(range(4)):
+        for j in ti.static(range(3)):
+            for k in ti.static(range(3)):
+                w = w_side[i].x * w_center[j].y * w_center[k].z
+                idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
+                grid_v_x[idx] += vp.x * w
+                grid_w_x[idx] += w
         
 
-    for i, j, k in ti.ndrange(3, 4, 3):
-        w = w_center[i].x * w_side[j].y * w_center[k].z
-        idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
-        grid_v_y[idx] += vp.y *w
-        grid_w_y[idx] += w
+    #for i, j, k in ti.ndrange(3, 4, 3):
+    for i in ti.static(range(3)):
+        for j in ti.static(range(4)):
+            for k in ti.static(range(3)):
+                w = w_center[i].x * w_side[j].y * w_center[k].z
+                idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
+                grid_v_y[idx] += vp.y *w
+                grid_w_y[idx] += w
 
-    for i, j, k in ti.ndrange(3, 3, 4):
-        w = w_center[i].x * w_center[j].y * w_side[k].z
-        idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
-        grid_v_z[idx] += vp.z * w
-        grid_w_z[idx] += w
+    #for i, j, k in ti.ndrange(3, 3, 4):
+    for i in ti.static(range(3)):
+        for j in ti.static(range(3)):
+            for k in ti.static(range(4)):
+                w = w_center[i].x * w_center[j].y * w_side[k].z
+                idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
+                grid_v_z[idx] += vp.z * w
+                grid_w_z[idx] += w
     
 
 @ti.kernel
@@ -185,16 +195,20 @@ def g2p():
 @ti.func
 def interp_particle(base, frac, p):
     # Index on sides
-    idx_side = ti.Vector([base-1, base, base+1, base+2])
+    #idx_side = ti.Vector([base-1, base, base+1, base+2])
+    idx_side = [base-1, base, base+1, base+2]
 
     # Weight on sides
-    w_side = ti.Vector([quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)])
+    #w_side = ti.Vector([quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)])
+    w_side = [quadratic_kernel(1.0+frac), quadratic_kernel(frac), quadratic_kernel(1.0-frac), quadratic_kernel(2.0-frac)]
     
     # Index on centers
-    idx_center = ti.Vector([base-1, base, base+1])
+    #idx_center = ti.Vector([base-1, base, base+1])
+    idx_center = [base-1, base, base+1]
 
     # Weight on centers
-    w_center = ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
+    #w_center = ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
+    w_center = [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
 
     wx = 0.0
     wy = 0.0
@@ -202,35 +216,46 @@ def interp_particle(base, frac, p):
     vx = 0.0
     vy = 0.0
     vz = 0.0
+    
+    # ti.static complier time unroll  https://docs.taichi-lang.org/blog/ast-refactoring#dealing-with-break-and-continue-in-compile-time-loop-unrolling
+    #for i, j, k in ti.static(ti.ndrange(4, 3, 3)):
+    for i in ti.static(range(4)):
+        for j in ti.static(range(3)):
+            for k in ti.static(range(3)):
+                w = w_side[i].x * w_center[j].y * w_center[k].z
+                idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)                
+                vtemp = grid_v_x[idx] * w
+                vx += vtemp
+                wx += w
 
-    for i, j, k in ti.ndrange(4, 3, 3):
-        w = w_side[i].x * w_center[j].y * w_center[k].z
-        idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
-        vtemp = grid_v_x[idx] * w
-        vx += vtemp
-        wx += w
-    for i, j, k in ti.ndrange(3, 4, 3):
-        w = w_center[i].x * w_side[j].y * w_center[k].z
-        idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
-        vtemp = grid_v_y[idx] * w
-        vy += vtemp
-        wy += w
+    #for i, j, k in ti.ndrange(3, 4, 3):
+    for i in ti.static(range(3)):
+        for j in ti.static(range(4)):
+            for k in ti.static(range(3)):
+                w = w_center[i].x * w_side[j].y * w_center[k].z
+                idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
+                vtemp = grid_v_y[idx] * w
+                vy += vtemp
+                wy += w
 
-    for i, j, k in ti.ndrange(3, 3, 4):
-        w = w_center[i].x * w_center[j].y * w_side[k].z
-        idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
-        vtemp = grid_v_z[idx] * w
-        vz += vtemp
-        wz += w
+    #for i, j, k in ti.ndrange(3, 3, 4):
+    for i in ti.static(range(3)):
+        for j in ti.static(range(3)):
+            for k in ti.static(range(4)):
+                w = w_center[i].x * w_center[j].y * w_side[k].z
+                idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
+                vtemp = grid_v_z[idx] * w
+                vz += vtemp
+                wz += w
 
-    vel[p] = ti.Vector([vx/wx, wy/wy, vz/wz])
+    vel[p] = ti.Vector([vx/wx, vy/wy, vz/wz])
 
 
 @ti.kernel
 def apply_force():
     for i, j, k in grid_v_z:
-        if k > 1:
-            grid_v_z[i, j, k] -= 9.81* dt
+        if j > 1:
+            grid_v_y[i, j, k] -= 9.81* dt
 
 @ti.kernel
 def boundary_condition():
@@ -257,11 +282,25 @@ def advection_particle():
     for p in pos:
         pos[p] += vel[p]
 
+    for p in pos:
+        _p = pos[p]
+        _v = vel[p]
+        for i in ti.static(range(3)):
+            if _p[i] <= dx:
+                _p[i] = dx
+                _v[i] = 0
+            if _p[i] >= grid_size[i] * dx - dx:
+                _p[i] = grid_size[i] * dx - dx
+                _v[i] = 0
+        pos[p] = _p
+        vel[p] = _v
+            
 
 def update():
-    apply_force()
+    clear_grid()
     boundary_condition()
     p2g()
+    apply_force()
     #solve_imcompressive()
     g2p()
     advection_particle()
@@ -279,7 +318,7 @@ canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(30, 30, 30)
+camera.position(100, 100, 100)
 camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
@@ -290,12 +329,10 @@ init()
 
 while window.running:
     ti.deactivate_all_snodes()  
-    camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
+    camera.track_user_inputs(window, movement_speed=0.5, hold_key=ti.ui.RMB)
  
     scene.set_camera(camera)
     
-
-
     for s in range(numSteps):
         update()    
     
