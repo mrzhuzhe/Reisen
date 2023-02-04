@@ -1,3 +1,5 @@
+from re import L
+from matplotlib.pyplot import sca
 import taichi as ti
 import taichi.math as tm
 
@@ -59,7 +61,7 @@ new_pressure = ti.field(f32, shape=grid_size)
 #
 
 # number of particle
-n = 100000
+n = 10000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 
@@ -152,7 +154,7 @@ def interp_grid(base, frac, vp):
 
     # weight on center 
     #w_center= ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
-    w_center= [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
+    w_center= [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
 
     #for i, j, k in ti.ndrange(4, 3, 3):
     for i in ti.static(range(4)):
@@ -208,7 +210,7 @@ def interp_particle(base, frac, p):
 
     # Weight on centers
     #w_center = ti.Vector([quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)])
-    w_center = [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
+    w_center= [quadratic_kernel(0.5+frac), quadratic_kernel(ti.abs(0.5-frac)), quadratic_kernel(1.5-frac)]
 
     wx = 0.0
     wy = 0.0
@@ -271,7 +273,7 @@ def boundary_condition():
         grid_v_z[grid_size[0]-1, j, k] = 0
         grid_v_z[grid_size[0], j, k] = 0
 
-    for i, k in ti.ndrange(grid_size[0], grid_size[1]):
+    for i, k in ti.ndrange(grid_size[0], grid_size[2]):
         grid_v_z[i, 0, k] = 0
         grid_v_z[i, 1, k] = 0
         grid_v_z[i, grid_size[1]-1, k] = 0
@@ -294,16 +296,117 @@ def advection_particle():
                 _v[i] = 0
         pos[p] = _p
         vel[p] = _v
+
+@ti.kernel
+def compute_divergence():
+    for i, j, k in divergence:
+        div = grid_v_x[i+1, j, k] - grid_v_x[i, j, k]
+        div += grid_v_y[i, j+1, k] - grid_v_y[i, j, k]
+        div += grid_v_z[i, j, k+1] - grid_v_z[i, j, k]
+        divergence[i, j, k] = div
+    divergence[i, j, k] /= dx
+
+@ti.func
+def is_valid(i, j, k):
+    return 0 <= i < grid_size[0] and 0 <= i < grid_size[1] and 0 <= i < grid_size[2]
+
+@ti.func
+def is_solid(i, j, k):
+    return is_valid(i, j, k) and cell_type[i, j, k] == SOLID
+
+@ti.func
+def is_fluid(i, j, k):
+    return is_valid(i, j, k) and cell_type[i, j, k] == FLUID
+
+@ti.kernel
+def jacobi_iter():
+    for i, j, k in pressure:
+        if is_fluid(i, j, k):
+            div = divergence[i, j, k]
+            p_x1 = pressure[i-1, j, k]
+            p_x2 = pressure[i+1, j, k]
+            p_y1 = pressure[i, j-1, k]
+            p_y2 = pressure[i, j+1, k]
+            p_z1 = pressure[i, j, k-1]
+            p_z2 = pressure[i, j, k+1]
+            n = 6 
+            if is_solid(i-1, j, k):
+                p_x1 = 0.0
+                n -=1
+            if is_solid(i+1, j, k):
+                p_x2 = 0.0
+                n -=1
+            if is_solid(i, j-1, k):
+                p_y1 = 0.0
+                n -=1
+            if is_solid(i, j+1, k):
+                p_y2 = 0.0
+                n -=1
+            if is_solid(i, j, k-1):
+                p_z1 = 0.0
+                n -=1
+            if is_solid(i, j, k+1):
+                p_z2 = 0.0
+                n -=1
             
+            #？？？？
+            new_pressure[i, j, k] = ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx ** 2 ) / n
+        else:
+            new_pressure[i, j, k] = 0.0
+
+
+num_jacobian_iter = 100
+def solve_pressure():
+    for i in range(num_jacobian_iter):
+        jacobi_iter()
+        pressure.copy_from(new_pressure)
+
+@ti.kernel
+def project_velocity():     
+    scale = dt / rho / dx
+    for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
+        if is_fluid(i-1, j, k) or is_fluid(i, j, k):
+            if is_solid(i-1, j, k) or is_solid(i, j, k):
+                grid_v_x[i, j, k] = 0
+            else:
+                grid_v_x[i, j, k] -= scale * (pressure[i, j, k] - pressure[i-1, j, k])
+        
+        if is_fluid(i, j-1, k) or is_fluid(i, j, k):
+            if is_solid(i, j-1, k) or is_solid(i, j, k):
+                grid_v_y[i, j, k] = 0
+            else:
+                grid_v_y[i, j, k] -= scale * (pressure[i, j, k]- pressure[i, j-1, k])
+
+        if is_fluid(i, j, k-1) or is_fluid(i, j, k):
+            if is_solid(i, j, k-1) or is_solid(i, j, k):
+                grid_v_y[i, j, k] = 0
+            else:
+                grid_v_y[i, j, k] -= scale * (pressure[i, j, k]- pressure[i, j, k-1])
+@ti.kernel
+def mark_celltype():
+    for i, j, k in cell_type:
+        if not is_solid(i, j, k):
+            cell_type[i, j, k] = AIR
+    
+    for p in pos:
+        x = pos[p]
+        idx = ti.cast(ti.floor(x/dx), i32)
+        if not is_solid(idx[0], idx[1], idx[2]):
+            cell_type[idx] = FLUID
 
 def update():
     clear_grid()
     boundary_condition()
     p2g()
     apply_force()
-    #solve_imcompressive()
+
+    compute_divergence()
+    solve_pressure()
+    project_velocity()
+
     g2p()
     advection_particle()
+    mark_celltype()
 
 
 
