@@ -47,10 +47,6 @@ grid_v_x = ti.field(f32, shape=(grid_size[0]+1, grid_size[1], grid_size[2]))
 grid_v_y = ti.field(f32, shape=(grid_size[0], grid_size[1]+1, grid_size[2]))
 grid_v_z = ti.field(f32, shape=(grid_size[0], grid_size[1], grid_size[2]+1))
 
-pre_grid_v_x = ti.field(f32, shape=(grid_size[0]+1, grid_size[1], grid_size[2]))
-pre_grid_v_y = ti.field(f32, shape=(grid_size[0], grid_size[1]+1, grid_size[2]))
-pre_grid_v_z = ti.field(f32, shape=(grid_size[0], grid_size[1], grid_size[2]+1))
-
 # grid weight 
 grid_w_x = ti.field(f32, shape=(grid_size[0]+1, grid_size[1], grid_size[2]))
 grid_w_y = ti.field(f32, shape=(grid_size[0], grid_size[1]+1, grid_size[2]))
@@ -64,11 +60,10 @@ new_pressure = ti.field(f32, shape=grid_size)
 #
 
 # number of particle
-n = 100000
+n = 1000000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
-
-flip_weight = 0.99
+affine_C = ti.Matrix.field(3, 3, ti.f32, shape=(n))
 
 @ti.kernel
 def init():
@@ -102,8 +97,9 @@ def p2g():
         v = vel[p]
         idx = x/dx
         base = ti.cast(ti.floor(idx), i32)
-        frac = idx - base         
-        interp_grid(base, frac, v)
+        frac = idx - base
+        cp = affine_C[p]    
+        interp_grid(base, frac, v, cp)
     
     for i, j, k in grid_v_x:
         v = grid_v_x[i, j, k]
@@ -142,7 +138,7 @@ def quadratic_kernel(x):
     return w
 
 @ti.func
-def interp_grid(base, frac, vp):
+def interp_grid(base, frac, vp, cp):
     
     # Index on sides
     #idx_side = ti.Vector([base-1, base, base+1, base+2])
@@ -167,6 +163,8 @@ def interp_grid(base, frac, vp):
                 w = w_side[i].x * w_center[j].y * w_center[k].z
                 idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)
                 grid_v_x[idx] += vp.x * w
+                dpos = (ti.Vector([i-1, j-0.5, k-0.5]) - frac) * dx
+                grid_v_x[idx] += w * (cp @ dpos).x
                 grid_w_x[idx] += w
         
 
@@ -177,6 +175,8 @@ def interp_grid(base, frac, vp):
                 w = w_center[i].x * w_side[j].y * w_center[k].z
                 idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
                 grid_v_y[idx] += vp.y *w
+                dpos = (ti.Vector([i-0.5, j-1, k-0.5]) - frac) * dx
+                grid_v_y[idx] += w * (cp @ dpos).y
                 grid_w_y[idx] += w
 
     #for i, j, k in ti.ndrange(3, 3, 4):
@@ -186,6 +186,8 @@ def interp_grid(base, frac, vp):
                 w = w_center[i].x * w_center[j].y * w_side[k].z
                 idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
                 grid_v_z[idx] += vp.z * w
+                dpos = (ti.Vector([i-0.5, j-0.5, k-1]) - frac) * dx
+                grid_v_z[idx] += w * (cp @ dpos).z
                 grid_w_z[idx] += w
     
 
@@ -223,9 +225,9 @@ def interp_particle(base, frac, p):
     vy = 0.0
     vz = 0.0
     
-    vx_d = 0.0
-    vy_d = 0.0
-    vz_d = 0.0
+    C_x = ti.Matrix.zero(ti.f32, 3)
+    C_y = ti.Matrix.zero(ti.f32, 3)
+    C_z = ti.Matrix.zero(ti.f32, 3)
 
     # ti.static complier time unroll  https://docs.taichi-lang.org/blog/ast-refactoring#dealing-with-break-and-continue-in-compile-time-loop-unrolling
     #for i, j, k in ti.static(ti.ndrange(4, 3, 3)):
@@ -235,8 +237,9 @@ def interp_particle(base, frac, p):
                 w = w_side[i].x * w_center[j].y * w_center[k].z
                 idx = (idx_side[i].x, idx_center[j].y, idx_center[k].z)                
                 vtemp = grid_v_x[idx] * w
-                vx_d += vtemp - pre_grid_v_x[idx] * w
                 vx += vtemp
+                dpos = ti.Vector([i-1, j-0.5, k-0.5]) - frac
+                C_x += 4 * vtemp * dpos  / dx
                 wx += w
 
     #for i, j, k in ti.ndrange(3, 4, 3):
@@ -246,8 +249,9 @@ def interp_particle(base, frac, p):
                 w = w_center[i].x * w_side[j].y * w_center[k].z
                 idx = (idx_center[i].x, idx_side[j].y, idx_center[k].z)
                 vtemp = grid_v_y[idx] * w
-                vy_d += vtemp - pre_grid_v_y[idx] * w
                 vy += vtemp
+                dpos = ti.Vector([i-0.5, j-1, k-0.5]) - frac
+                C_y += 4 * vtemp * dpos  / dx
                 wy += w
 
     
@@ -258,12 +262,13 @@ def interp_particle(base, frac, p):
                 w = w_center[i].x * w_center[j].y * w_side[k].z
                 idx = (idx_center[i].x, idx_center[j].y, idx_side[k].z)
                 vtemp = grid_v_z[idx] * w
-                vz_d += vtemp - pre_grid_v_z[idx] * w
                 vz += vtemp
+                dpos = ti.Vector([i-0.5, j-0.5, k-1]) - frac
+                C_z += 4 * vtemp * dpos  / dx
                 wz += w
 
-    vel[p] = flip_weight * (vel[p] + ti.Vector([vx_d/wx, vy_d/wy, vz_d/wz])) + (1 - flip_weight) * ti.Vector([vx/wx, vy/wy, vz/wz])
-
+    vel[p] = ti.Vector([vx/wx, vy/wy, vz/wz])
+    affine_C[p] = ti.Matrix.rows([C_x/wx, C_y/wy, C_z/wz])
 
 @ti.kernel
 def apply_force():
@@ -415,11 +420,6 @@ def update():
     clear_grid()
     boundary_condition()
     p2g()
-
-    pre_grid_v_x.copy_from(grid_v_x)
-    pre_grid_v_y.copy_from(grid_v_y)
-    pre_grid_v_z.copy_from(grid_v_z)
-
     apply_force()
 
     compute_divergence()
