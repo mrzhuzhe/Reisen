@@ -1,11 +1,9 @@
-from re import L
-from matplotlib.pyplot import sca
 import taichi as ti
 import taichi.math as tm
 
 f32 = ti.f32
 i32 = ti.i32
-ti.init(arch=ti.gpu) 
+ti.init(arch=ti.vulkan)
 
 numSteps = 1
 particleRadius = 0.01
@@ -129,7 +127,7 @@ def p2g():
 @ti.func
 def quadratic_kernel(x):
     w = ti.Vector([0.0 for _ in range(3)])
-    for i in range(3): 
+    for i in ti.static(range(3)): 
         if x[i] < 0.5:
             w[i] = 0.75 - x[i]**2
         elif x[i] < 1.5:
