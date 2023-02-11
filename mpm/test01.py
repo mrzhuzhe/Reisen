@@ -6,12 +6,13 @@ i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
 numSteps = 50
-particleRadius = 0.05
+particleRadius = 0.01
 dt = 2e-4
 g = ti.Vector((0, -9.81, 0), ti.f32)
-
+#g = ti.Vector((0, 0, 0), ti.f32)
 bound = 3
-dx = 0.1 # grid quantitle size
+#dx = 0.1 # grid quantitle size
+dx = 1 / 128
 rho = 1.0 # density
 p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
@@ -26,7 +27,7 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = 100000
+n = 10000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n))
@@ -34,15 +35,10 @@ J = ti.field(float, n)
 
 @ti.kernel
 def init():
-    range_min = ti.Vector([16, 16, 16])
-    range_max = ti.Vector([48, 48, 48])
-    particle_init_size = range_max - range_min
-    for p in pos:
-        pl = p // 4 # 4 particle per grid
-        k = pl % particle_init_size[2] + range_min[2]
-        j = pl // particle_init_size[2] % particle_init_size[1] + range_min[1]
-        i = pl // (particle_init_size[2] * particle_init_size[1]) % particle_init_size[0] + range_min[0]        
-        pos[p] = (ti.Vector([i, j, k]) + ti.Vector([ti.random(), ti.random(), ti.random()])) * dx
+    for i in range(n):
+        pos[i] = ti.Vector([ti.random() * 0.4 + 0.2, ti.random() * 0.4 + 0.2, ti.random() * 0.4 + 0.2])
+        vel[i] = [0, -1, 0]
+        J[i] = 1
 
 @ti.kernel
 def clear_grid():
@@ -61,7 +57,8 @@ def p2g():
         frac = idx - base
         cp = C[p]
         jp = J[p]     
-        #interp_grid(base, frac, v, cp, jp)
+        interp_grid(base, frac, v, cp, jp)
+        """
         w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
 
         stress = -dt * 4 * E * p_vol * (jp - 1) / dx**2
@@ -76,15 +73,17 @@ def p2g():
             #print(p_mass * vel[p] + affine @ dpos)
             #print(weight)
             #grid_v[base + offset] += weight * (p_mass * vel[p])
-            val = weight * ( affine @ dpos)
+            #val = weight * ( affine @ dpos)
             #grid_v[base + offset] += weight * (p_mass * vel[p]) + val
             grid_m[base + offset] += weight * p_mass
+        """
+        
                 
     for i, j, k in grid_m:
     #for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         if grid_m[i, j, k] > 0:
             grid_v[i, j, k] /= grid_m[i, j, k]
-"""
+#"""
 @ti.func
 def interp_grid(base, frac, vp, cp, jp):
     
@@ -102,13 +101,9 @@ def interp_grid(base, frac, vp, cp, jp):
         dpos = (offset - frac) * dx
         weight = w[i].x * w[j].y * w[k].z
         grid_v[base + offset] += weight * (p_mass * vp) + affine @ dpos
-        grid_m[base + offset] += weight * p_mass
-            
-    #for i, j, k in grid_m:
-    for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
-        if grid_m[i, j, k] > 0:
-            grid_v[i, j, k] /= grid_m[i, j, k]
-"""
+        grid_m[base + offset] += weight * p_mass            
+
+#"""
 
     
 
@@ -135,11 +130,13 @@ def interp_particle(base, frac, p):
         offset = ti.Vector([i, j, k])
         dpos = (offset - frac) * dx
         weight = w[i].x * w[j].y * w[k].z
-        g_v = grid_v[base + offset]
+        g_v = grid_v[base + offset]      
         new_v += weight * g_v
         # 4 need to be changed 
-        new_c += 4 * weight * g_v.outer_product(dpos) / dx**2
+        new_c += 4 * weight * g_v.outer_product(dpos) / dx**2    
+      
     vel[p] = new_v
+    
     J[p] *= 1 + dt * new_c.trace()
     C[p] = new_c
     #advection 
@@ -148,8 +145,8 @@ def interp_particle(base, frac, p):
 
 @ti.kernel
 def apply_force():
-    #for i, j, k in grid_v:
-    for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
+    for i, j, k in grid_m:
+    #for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         grid_v[i, j, k] += g * dt
 
 @ti.kernel
@@ -180,7 +177,7 @@ def advection_particle():
 
 def update():
     clear_grid()
-    p2g()
+    #p2g()
     apply_force()
     boundary_condition()
     g2p()
@@ -199,8 +196,8 @@ canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(10, 1, 10)
-camera.lookat(0, 1, 0)
+camera.position(1, 1, 1)
+camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
 
