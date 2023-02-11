@@ -3,11 +3,11 @@ import taichi.math as tm
 
 f32 = ti.f32
 i32 = ti.i32
-ti.init(arch=ti.cuda)
+ti.init(arch=ti.vulkan)
 
 numSteps = 50
 particleRadius = 0.05
-dt = 0.01
+dt = 2e-4
 g = ti.Vector((0, -9.81, 0), ti.f32)
 
 bound = 3
@@ -18,10 +18,10 @@ p_mass = p_vol * rho
 E = 400
 
 
-grid_size = (64, 64, 64)
+grid_size = (128, 128, 128)
 
 # grid velocity
-grid_v = ti.Vector.field(3, f32, shape=(grid_size[0]+1, grid_size[1], grid_size[2]))
+grid_v = ti.Vector.field(3, f32, shape=(grid_size[0], grid_size[1], grid_size[2]))
 grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
@@ -49,19 +49,42 @@ def clear_grid():
     grid_v.fill(0.0)
     grid_m.fill(0.0)
 
+
 @ti.kernel
 def p2g():
     for p in pos:
         x = pos[p]
         v = vel[p]
         idx = x/dx
-        base = ti.cast(ti.floor(idx), i32)
+        #base = ti.cast(ti.floor(idx), i32)
+        base = int(idx - 0.5)
         frac = idx - base
         cp = C[p]
         jp = J[p]     
-        interp_grid(base, frac, v, cp, jp)
-    
+        #interp_grid(base, frac, v, cp, jp)
+        w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
 
+        stress = -dt * 4 * E * p_vol * (jp - 1) / dx**2
+        affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
+
+        for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops        
+            offset = ti.Vector([i, j, k])
+            dpos = (offset - frac) * dx
+            weight = w[i].x * w[j].y * w[k].z
+            grid_v[base + offset] += weight * (p_mass * vel[p] + affine @ dpos)
+            #print(p_mass * vel[p], affine @ dpos)
+            #print(p_mass * vel[p] + affine @ dpos)
+            #print(weight)
+            #grid_v[base + offset] += weight * (p_mass * vel[p])
+            val = weight * ( affine @ dpos)
+            #grid_v[base + offset] += weight * (p_mass * vel[p]) + val
+            grid_m[base + offset] += weight * p_mass
+                
+    for i, j, k in grid_m:
+    #for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
+        if grid_m[i, j, k] > 0:
+            grid_v[i, j, k] /= grid_m[i, j, k]
+"""
 @ti.func
 def interp_grid(base, frac, vp, cp, jp):
     
@@ -85,6 +108,8 @@ def interp_grid(base, frac, vp, cp, jp):
     for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         if grid_m[i, j, k] > 0:
             grid_v[i, j, k] /= grid_m[i, j, k]
+"""
+
     
 
 @ti.kernel
@@ -92,7 +117,8 @@ def g2p():
     for p in pos:
         x = pos[p]
         idx = x/dx
-        base = ti.cast(ti.floor(idx), i32)
+        #base = ti.cast(ti.floor(idx), i32)
+        base = int(idx - 0.5)
         frac = idx - base           
         interp_particle(base, frac, p)
 
@@ -154,7 +180,7 @@ def advection_particle():
 
 def update():
     clear_grid()
-    #p2g()
+    p2g()
     apply_force()
     boundary_condition()
     g2p()
