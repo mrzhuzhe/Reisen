@@ -1,6 +1,3 @@
-# reffer https://github.com/taichi-dev/taichi_elements
-# aot https://github.com/taichi-dev/taichi-aot-demo
-# 2d description https://github.com/taichi-dev/mls_mpm_88_extensions
 import taichi as ti
 import taichi.math as tm
 
@@ -10,16 +7,16 @@ ti.init(arch=ti.vulkan)
 
 numSteps = 50
 particleRadius = 0.005
-dt = 1e-4 # 2e-4 not move
+dt = 2e-3 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 #g = ti.Vector((0, 0, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
 dx = 1 / 128
 rho = 1.0 # density
-p_vol = (dx * 0.5)**3
+p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
-E = 400#400  # checkborar pattern
+E = 4e-4#400  # checkborar pattern
 
 
 grid_size = (128, 128, 128)
@@ -30,7 +27,7 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = 10000
+n = 50000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n))
@@ -94,7 +91,7 @@ def interp_grid(base, frac, vp, cp, jp):
     
     w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
 
-    stress = -dt * 4 * E * p_vol * (jp - 1) / dx**3
+    stress = -dt * 4 * E * p_vol * (jp - 1) / dx**2
     affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
 
     for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops
@@ -103,7 +100,7 @@ def interp_grid(base, frac, vp, cp, jp):
     #    for j in ti.static(range(3)):
     #        for k in ti.static(range(3)):
         offset = ti.Vector([i, j, k])
-        dpos = (offset - frac) * dx * dx
+        dpos = (offset - frac) * dx
         weight = w[i].x * w[j].y * w[k].z
         grid_v[base + offset] += weight * (p_mass * vp + affine @ dpos)
         grid_m[base + offset] += weight * p_mass            
@@ -133,12 +130,12 @@ def interp_particle(base, frac, p):
     #        for k in ti.static(range(3)):
     for i, j, k in ti.static(ti.ndrange(3, 3, 3)): 
         offset = ti.Vector([i, j, k])
-        dpos = (offset - frac) * dx * dx
+        dpos = (offset - frac) * dx
         weight = w[i].x * w[j].y * w[k].z
         g_v = grid_v[base + offset]      
         new_v += weight * g_v
         # 4 need to be changed 
-        new_c += 12 * weight * g_v.outer_product(dpos) / dx**3    
+        new_c += 4 * weight * g_v.outer_product(dpos) / dx**2    
     vel[p] = new_v
     
     J[p] *= 1 + dt * new_c.trace()
@@ -201,7 +198,7 @@ canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(2, 0, 2)
+camera.position(1, 1, 1)
 camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
