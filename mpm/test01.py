@@ -6,8 +6,8 @@ i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
 numSteps = 50
-particleRadius = 0.01
-dt = 2e-4
+particleRadius = 0.005
+dt = 2e-3 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 #g = ti.Vector((0, 0, 0), ti.f32)
 bound = 3
@@ -16,7 +16,7 @@ dx = 1 / 128
 rho = 1.0 # density
 p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
-E = 400
+E = 4e-4#400  # checkborar pattern
 
 
 grid_size = (128, 128, 128)
@@ -27,7 +27,7 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = 10000
+n = 50000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n))
@@ -42,9 +42,11 @@ def init():
 
 @ti.kernel
 def clear_grid():
-    grid_v.fill(0.0)
-    grid_m.fill(0.0)
-
+    #grid_v.fill(0.0)
+    #grid_m.fill(0.0)
+    for i, j, k in grid_m:
+        grid_v[i, j, k] = [0, 0, 0]
+        grid_m[i, j, k] = 0
 
 @ti.kernel
 def p2g():
@@ -100,7 +102,7 @@ def interp_grid(base, frac, vp, cp, jp):
         offset = ti.Vector([i, j, k])
         dpos = (offset - frac) * dx
         weight = w[i].x * w[j].y * w[k].z
-        grid_v[base + offset] += weight * (p_mass * vp) + affine @ dpos
+        grid_v[base + offset] += weight * (p_mass * vp + affine @ dpos)
         grid_m[base + offset] += weight * p_mass            
 
 #"""
@@ -134,7 +136,6 @@ def interp_particle(base, frac, p):
         new_v += weight * g_v
         # 4 need to be changed 
         new_c += 4 * weight * g_v.outer_product(dpos) / dx**2    
-      
     vel[p] = new_v
     
     J[p] *= 1 + dt * new_c.trace()
@@ -148,6 +149,7 @@ def apply_force():
     for i, j, k in grid_m:
     #for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         grid_v[i, j, k] += g * dt
+        
 
 @ti.kernel
 def boundary_condition():
@@ -162,22 +164,22 @@ def boundary_condition():
         if j > grid_size[1] - bound and grid_v[i, j, k].y > 0:
             grid_v[i, j, k].y = 0
 
-        if j < bound and grid_v[i, j, k].z < 0:
+        if k < bound and grid_v[i, j, k].z < 0:
             grid_v[i, j, k].z = 0
-        if j > grid_size[2] - bound and grid_v[i, j, k].z > 0:
+        if k > grid_size[2] - bound and grid_v[i, j, k].z > 0:
             grid_v[i, j, k].z = 0
         
 
 @ti.kernel 
 def advection_particle():    
     for p in pos:
-    #for p in ti.ndrange(n):
-        pos[p] += dt * vel[p] 
+    #for p in ti.ndrange(n):        
+        pos[p] += dt * vel[p]        
 
 
 def update():
     clear_grid()
-    #p2g()
+    p2g()
     apply_force()
     boundary_condition()
     g2p()
