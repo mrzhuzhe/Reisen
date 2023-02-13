@@ -8,7 +8,7 @@ f32 = ti.f32
 i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
-numSteps = 50
+numSteps = 100
 particleRadius = 0.005
 dt = 1e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
@@ -19,7 +19,7 @@ dx = 1 / 128
 rho = 1.0 # density
 p_vol = (dx * 0.5)**3
 p_mass = p_vol * rho
-E = 400#400  # checkborar pattern
+E = 400 #400  # checkborar pattern
 
 
 grid_size = (128, 128, 128)
@@ -30,7 +30,7 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = 10000
+n = 1000000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n))
@@ -138,7 +138,7 @@ def interp_particle(base, frac, p):
         g_v = grid_v[base + offset]      
         new_v += weight * g_v
         # 4 need to be changed 
-        new_c += 12 * weight * g_v.outer_product(dpos) / dx**3    
+        new_c += 10 * weight * g_v.outer_product(dpos) / dx**3    
     vel[p] = new_v
     
     J[p] *= 1 + dt * new_c.trace()
