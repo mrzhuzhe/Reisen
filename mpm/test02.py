@@ -57,7 +57,7 @@ def init():
         vel[i] = [0, 0, 0]
         J[i] = 1
         F[i] = ti.Matrix.identity(float, 3)
-        material[i] = 1
+        material[i] = 2
 
 @ti.kernel
 def clear_grid():
@@ -89,8 +89,7 @@ def p2g():
         U, sig, V = ti.svd(fp)
 
         jc = 1.0
-        #for d in ti.static(range(3)):
-        for d in ti.static(range(2)):
+        for d in ti.static(range(3)):
             #new_sig = sig[d, d, d]
             new_sig = sig[d, d]
             if material[p] == 2:  # Snow
@@ -108,7 +107,9 @@ def p2g():
         elif material[p] == 2:
             # Reconstruct elastic deformation gradient after plasticity
             fp = U @ sig @ V.transpose()
+        
         F[p] = fp
+        J[p] = jp
 
         stress = 2 * mu * (fp - U @ V.transpose()) @ fp.transpose(
             ) + ti.Matrix.identity(float, 3) * la * jc * (jc - 1)
@@ -216,7 +217,7 @@ canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(2, 0, 2)
+camera.position(2, 2, 2)
 camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
