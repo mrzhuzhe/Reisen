@@ -16,21 +16,22 @@ f32 = ti.f32
 i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
-numSteps = 100
+numSteps = 25
 particleRadius = 0.005
-dt = 1e-4 # 2e-4 not move
+dt = 4e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 #g = ti.Vector((0, 0, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
-dx = 1 / 128
+grid_n = 64
+dx = 1 / grid_n
 rho = 1.0 # density
-p_vol = (dx * 0.5)**3
+p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
 E = 400 #400  # checkborar pattern
 
 
-grid_size = (128, 128, 128)
+grid_size = (grid_n, grid_n, grid_n)
 
 # grid velocity
 grid_v = ti.Vector.field(3, f32, shape=(grid_size[0], grid_size[1], grid_size[2]))
@@ -53,11 +54,11 @@ def init():
 
 @ti.kernel
 def clear_grid():
-    #grid_v.fill(0.0)
-    #grid_m.fill(0.0)
-    for i, j, k in grid_m:
-        grid_v[i, j, k] = [0, 0, 0]
-        grid_m[i, j, k] = 0
+    grid_v.fill(0.0)
+    grid_m.fill(0.0)
+    #for i, j, k in grid_m:
+    #    grid_v[i, j, k] = [0, 0, 0]
+    #    grid_m[i, j, k] = 0
 
 @ti.kernel
 def p2g():
@@ -102,7 +103,7 @@ def interp_grid(base, frac, vp, cp, jp):
     
     w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
 
-    stress = -dt * 4 * E * p_vol * (jp - 1) / dx**3
+    stress = -dt * 4 * E * p_vol * (jp - 1) / dx**2
     affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
 
     for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops
@@ -111,7 +112,7 @@ def interp_grid(base, frac, vp, cp, jp):
     #    for j in ti.static(range(3)):
     #        for k in ti.static(range(3)):
         offset = ti.Vector([i, j, k])
-        dpos = (offset - frac) * dx * dx
+        dpos = (offset - frac) * dx 
         weight = w[i].x * w[j].y * w[k].z
         grid_v[base + offset] += weight * (p_mass * vp + affine @ dpos)
         grid_m[base + offset] += weight * p_mass            
@@ -141,12 +142,12 @@ def interp_particle(base, frac, p):
     #        for k in ti.static(range(3)):
     for i, j, k in ti.static(ti.ndrange(3, 3, 3)): 
         offset = ti.Vector([i, j, k])
-        dpos = (offset - frac) * dx * dx
+        dpos = (offset - frac) * dx 
         weight = w[i].x * w[j].y * w[k].z
         g_v = grid_v[base + offset]      
         new_v += weight * g_v
         # 4 need to be changed 
-        new_c += 10 * weight * g_v.outer_product(dpos) / dx**3    
+        new_c += 4 * weight * g_v.outer_product(dpos) / dx**2   
     vel[p] = new_v
     
     J[p] *= 1 + dt * new_c.trace()
