@@ -16,9 +16,9 @@ f32 = ti.f32
 i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
-numSteps = 100
+numSteps = 50
 particleRadius = 0.005
-dt = 1e-4 # 2e-4 not move
+dt = 2e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
@@ -56,7 +56,7 @@ def init():
         vel[i] = [0, 0, 0]
         J[i] = 1
         F[i] = ti.Matrix([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        material[i] = 2
+        material[i] = 0
 
 @ti.kernel
 def clear_grid():
@@ -156,13 +156,11 @@ def interp_particle(base, frac, p):
         g_v = grid_v[base + offset]      
         new_v += weight * g_v
         # 4 need to be changed 
-        new_c += 10 * weight * g_v.outer_product(dpos) / dx**3    
+        new_c += 0.4 * weight * g_v.outer_product(dpos) / dx**3    
     vel[p] = new_v
     
     J[p] *= 1 + dt * new_c.trace()
     C[p] = new_c
-    #advection 
-    #pos[p] += dt * vel[p]
 
 
 @ti.kernel
