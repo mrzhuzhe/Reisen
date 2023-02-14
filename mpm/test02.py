@@ -20,7 +20,6 @@ numSteps = 100
 particleRadius = 0.005
 dt = 1e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
-#g = ti.Vector((0, 0, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
 dx = 1 / 128
@@ -28,7 +27,9 @@ rho = 1.0 # density
 p_vol = (dx * 0.5)**3
 p_mass = p_vol * rho
 E = 400 #400  # checkborar pattern
-
+nu = 0.2
+mu_0 = E / (2 *( 1 + nu ))
+lambda_0 = E * nu / ((1+nu)*(1-2*nu)) # lame parameters
 
 grid_size = (128, 128, 128)
 
@@ -41,23 +42,26 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 n = 10000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
-C = ti.Matrix.field(3, 3, ti.f32, shape=(n))
-J = ti.field(float, n)
+C = ti.Matrix.field(3, 3, ti.f32, shape=(n)) # affine velocity
+J = ti.field(float, n) # plastic deformation
+F = ti.Matrix.field(3, 3, ti.f32, shape=(n)) # defomation gradient
+material = ti.field(int, shape=(n))
+
+
 
 @ti.kernel
 def init():
     for i in range(n):
         pos[i] = ti.Vector([ti.random() * 0.4 + 0.2, ti.random() * 0.4 + 0.2, ti.random() * 0.4 + 0.2])
-        vel[i] = [0, -1, 0]
+        vel[i] = [0, 0, 0]
         J[i] = 1
+        F[i] = ti.Matrix([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        material[i] = 2
 
 @ti.kernel
 def clear_grid():
-    #grid_v.fill(0.0)
-    #grid_m.fill(0.0)
-    for i, j, k in grid_m:
-        grid_v[i, j, k] = [0, 0, 0]
-        grid_m[i, j, k] = 0
+    grid_v.fill(0.0)
+    grid_m.fill(0.0)
 
 @ti.kernel
 def p2g():
@@ -67,56 +71,66 @@ def p2g():
         idx = x/dx
         #base = ti.cast(ti.floor(idx), i32)
         base = int(idx - 0.5)
-        frac = idx - base
+        frac = idx - base.cast(float)
         cp = C[p]
-        jp = J[p]     
-        interp_grid(base, frac, v, cp, jp)
-        """
-        w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
+        jp = J[p]
 
-        stress = -dt * 4 * E * p_vol * (jp - 1) / dx**2
-        affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
-
-        for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops        
-            offset = ti.Vector([i, j, k])
-            dpos = (offset - frac) * dx
-            weight = w[i].x * w[j].y * w[k].z
-            grid_v[base + offset] += weight * (p_mass * vel[p] + affine @ dpos)
-            #print(p_mass * vel[p], affine @ dpos)
-            #print(p_mass * vel[p] + affine @ dpos)
-            #print(weight)
-            #grid_v[base + offset] += weight * (p_mass * vel[p])
-            #val = weight * ( affine @ dpos)
-            #grid_v[base + offset] += weight * (p_mass * vel[p]) + val
-            grid_m[base + offset] += weight * p_mass
-        """
+        # F[p]: deformation gradient update
+        fp = (ti.Matrix.identity(float, 3) + dt * cp) @ F[p]
+        # h: Hardening coefficient: snow gets harder when compressed
+        h = ti.exp(10 * (1.0 - jp))
+        if material[p] == 1:  # jelly, make it softer
+            h = 0.3
+        mu, la = mu_0 * h, lambda_0 * h
+        if material[p] == 0:  # liquid
+            mu = 0.0
         
-                
+        U, sig, V = ti.svd(fp)
+
+        jc = 1.0
+        #for d in ti.static(range(3)):
+        for d in ti.static(range(2)):
+            #new_sig = sig[d, d, d]
+            new_sig = sig[d, d]
+            if material[p] == 2:  # Snow
+                #new_sig = ti.min(ti.max(sig[d, d, d], 1 - 2.5e-2),
+                new_sig = ti.min(ti.max(sig[d, d], 1 - 2.5e-2),
+                                 1 + 4.5e-3)  # Plasticity
+            #jp *= sig[d, d, d] / new_sig
+            jp *= sig[d, d] / new_sig
+            #sig[d, d, d] = new_sig
+            sig[d, d] = new_sig
+            jc *= new_sig
+        if material[p] == 0:
+            # Reset deformation gradient to avoid numerical instability
+            fp = ti.Matrix.identity(float, 3) * ti.sqrt(jc)
+        elif material[p] == 2:
+            # Reconstruct elastic deformation gradient after plasticity
+            fp = U @ sig @ V.transpose()
+        F[p] = fp
+
+        stress = 2 * mu * (fp - U @ V.transpose()) @ fp.transpose(
+            ) + ti.Matrix.identity(float, 3) * la * jc * (jc - 1)
+        stress = (-dt * p_vol * 4 ) * stress / dx**3
+        affine = stress + p_mass * cp
+
+        interp_grid(base, frac, v, affine)        
+                        
     for i, j, k in grid_m:
-    #for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         if grid_m[i, j, k] > 0:
             grid_v[i, j, k] /= grid_m[i, j, k]
-#"""
+
+
 @ti.func
-def interp_grid(base, frac, vp, cp, jp):
-    
+def interp_grid(base, frac, vp, affine):
+    # Quadratic kernels  [http://mpm.graphics   Eqn. 123, with x=fx, fx-1,fx-2]
     w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
-
-    stress = -dt * 4 * E * p_vol * (jp - 1) / dx**3
-    affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
-
-    for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops
-    #for i, j, k in ti.ndrange(3, 3, 3):
-    #for i in ti.static(range(3)):
-    #    for j in ti.static(range(3)):
-    #        for k in ti.static(range(3)):
+    for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops   
         offset = ti.Vector([i, j, k])
-        dpos = (offset - frac) * dx * dx
+        dpos = (offset - frac) * dx ** 2
         weight = w[i].x * w[j].y * w[k].z
         grid_v[base + offset] += weight * (p_mass * vp + affine @ dpos)
         grid_m[base + offset] += weight * p_mass            
-
-#"""
 
     
 
@@ -134,11 +148,7 @@ def g2p():
 def interp_particle(base, frac, p):
     w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
     new_v = ti.Vector.zero(float, 3)
-    new_c = ti.Matrix.zero(float, 3, 3)
-    #for i, j, k in ti.static(ti.ndrange(3, 3, 3)):
-    #for i in ti.static(range(3)):
-    #   for j in ti.static(range(3)):
-    #        for k in ti.static(range(3)):
+    new_c = ti.Matrix.zero(float, 3, 3)    
     for i, j, k in ti.static(ti.ndrange(3, 3, 3)): 
         offset = ti.Vector([i, j, k])
         dpos = (offset - frac) * dx * dx
@@ -158,7 +168,6 @@ def interp_particle(base, frac, p):
 @ti.kernel
 def apply_force():
     for i, j, k in grid_m:
-    #for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         grid_v[i, j, k] += g * dt
         
 
@@ -183,8 +192,7 @@ def boundary_condition():
 
 @ti.kernel 
 def advection_particle():    
-    for p in pos:
-    #for p in ti.ndrange(n):        
+    for p in pos:       
         pos[p] += dt * vel[p]        
 
 
