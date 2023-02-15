@@ -17,7 +17,7 @@ i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
 numSteps = 25
-particleRadius = 0.001
+particleRadius = 0.002
 dt = 4e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 bound = 3
@@ -41,7 +41,7 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = int(3 * 1e5)#100000
+n = int(2 * 1e5)#100000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n)) # affine velocity
@@ -55,9 +55,11 @@ color = ti.Vector.field(3, ti.f32, shape=(n))
 def init():
     group = 9
     group_size = n // group
-    colorArr = ti.Vector([[0, 1, 1], [1, 1, 0], [1, 0, 1], 
-    [1, 0, 0], [0, 1, 0], [0, 0, 1], 
-    [0.6, 0.3, 0], [0, 0.5, 0.3], [0.3, 0.5, 0.7]])    
+    colorArr = ti.Vector([
+        [0, 1, 1], [1, 1, 0], [1, 0, 1], 
+        [1, 0, 0], [0, 1, 0], [0, 0, 1], 
+        [0.6, 0.3, 0.2], [0.4, 0.5, 0.3], [0.3, 0.5, 0.7]
+        ])    
     
     for i in ti.ndrange(n):
         _gid = i // group_size
@@ -65,7 +67,7 @@ def init():
         _row = _gid%3
         pos[i] = ti.Vector([
             ti.random() * 0.1 + 0.3 * _col, 
-            ti.random() * 0.1 + 0.4 , 
+            ti.random() * 0.3 + 0.5 , 
             ti.random() * 0.1 + 0.2 * _row])
         vel[i] = [0, 0, 0]
         J[i] = 1
@@ -241,8 +243,9 @@ scene = ti.ui.Scene()
 camera = ti.ui.make_camera()
 camera.position(2, 1, 2)
 camera.lookat(0, 0, 0)
-scene.ambient_light((0.5, 0.5, 0.5))
-scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
+#scene.ambient_light((0.5, 0.5, 0.5))
+scene.ambient_light((0.75, 0.75, 0.75))
+#scene.point_light(pos=(0.1, 0.1, 0.1), color=(1, 1, 1))
 
 
 init()
