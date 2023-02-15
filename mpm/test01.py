@@ -104,7 +104,8 @@ def interp_grid(base, frac, vp, cp, jp):
     w = [0.5 * (1.5 - frac)**2, 0.75 - (frac - 1)**2, 0.5 * (frac - 0.5)**2]
 
     stress = -dt * 4 * E * p_vol * (jp - 1) / dx**2
-    affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
+    #affine = ti.Matrix([[stress, 0, 0], [0, stress, 0], [0, 0, stress]]) + p_mass * cp
+    affine = ti.Matrix.identity(float, 3) * stress + p_mass * cp
 
     for i, j, k in ti.static(ti.ndrange(3, 3, 3)): # [simplify.cpp:visit@568] Nested struct-fors are not supported for now. Please try to use range-fors for inner loops
     #for i, j, k in ti.ndrange(3, 3, 3):
