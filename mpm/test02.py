@@ -104,7 +104,11 @@ def p2g():
             jc *= new_sig
         if material[p] == 0:
             # Reset deformation gradient to avoid numerical instability
-            F[p] = ti.Matrix.identity(float, 3) * ti.sqrt(jc)
+            #new_F = ti.Matrix.identity(float, 3) * ti.sqrt(jc)
+            new_F = ti.Matrix.identity(float, 3)
+            new_F[0, 0] = jc
+            F[p] = new_F
+
         elif material[p] == 2:
             # Reconstruct elastic deformation gradient after plasticity
             F[p] = U @ sig @ V.transpose()
