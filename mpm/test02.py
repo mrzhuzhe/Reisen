@@ -18,7 +18,7 @@ ti.init(arch=ti.vulkan)
 
 numSteps = 25
 particleRadius = 0.002
-dt = 4e-4 # 2e-4 not move
+dt = 2e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
