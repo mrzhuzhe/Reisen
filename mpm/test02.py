@@ -17,7 +17,7 @@ i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
 numSteps = 25
-particleRadius = 0.005
+particleRadius = 0.001
 dt = 4e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 bound = 3
@@ -41,24 +41,39 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = 10000
+n = int(3 * 1e5)#100000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n)) # affine velocity
 J = ti.field(float, n) # plastic deformation
 F = ti.Matrix.field(3, 3, ti.f32, shape=(n)) # defomation gradient
 material = ti.field(int, shape=(n))
-
+color = ti.Vector.field(3, ti.f32, shape=(n))
 
 
 @ti.kernel
 def init():
-    for i in range(n):
-        pos[i] = ti.Vector([ti.random() * 0.4 + 0.2, ti.random() * 0.4 + 0.2, ti.random() * 0.4 + 0.2])
+    group = 9
+    group_size = n // group
+    colorArr = ti.Vector([[0, 1, 1], [1, 1, 0], [1, 0, 1], 
+    [1, 0, 0], [0, 1, 0], [0, 0, 1], 
+    [0.6, 0.3, 0], [0, 0.5, 0.3], [0.3, 0.5, 0.7]])    
+    
+    for i in ti.ndrange(n):
+        _gid = i // group_size
+        _col = _gid//3
+        _row = _gid%3
+        pos[i] = ti.Vector([
+            ti.random() * 0.1 + 0.3 * _col, 
+            ti.random() * 0.1 + 0.4 , 
+            ti.random() * 0.1 + 0.2 * _row])
         vel[i] = [0, 0, 0]
         J[i] = 1
         F[i] = ti.Matrix.identity(float, 3)
-        material[i] = 0
+        material[i] = i // group_size % 3
+        color[i] = (colorArr[_gid, 0], 
+                    colorArr[_gid, 1], 
+                    colorArr[_gid, 2])
 
 @ti.kernel
 def clear_grid():
@@ -105,7 +120,7 @@ def p2g():
         if material[p] == 0:
             # Reset deformation gradient to avoid numerical instability
             #new_F = ti.Matrix.identity(float, 3) * ti.sqrt(jc)
-            new_F = ti.Matrix.identity(float, 3)
+            new_F = ti.Matrix.identity(float, 3) # this is borrow from taichi element
             new_F[0, 0] = jc
             F[p] = new_F
 
@@ -213,8 +228,8 @@ def update():
 
 
 
-win_x = 640
-win_y = 640
+win_x = 1280
+win_y = 1280
 
 window = ti.ui.Window("mpm 3d", 
 (win_x, win_y), vsync=True
@@ -224,7 +239,7 @@ canvas.set_background_color((0, 0, 0))
 scene = ti.ui.Scene()
 
 camera = ti.ui.make_camera()
-camera.position(2, 2, 2)
+camera.position(2, 1, 2)
 camera.lookat(0, 0, 0)
 scene.ambient_light((0.5, 0.5, 0.5))
 scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
@@ -242,7 +257,14 @@ while window.running:
     for s in range(numSteps):
         update()    
     
-    scene.particles(pos, color = (0, 1, 1), radius = particleRadius)
+    #scene.particles(pos, color = (0, 1, 1), radius = particleRadius)
+    scene.particles(pos, 
+                    #palette=[0x068587, 0xED553B, 0xEEEEF0],
+                    #palette_indices=material, 
+                    #color = (0, 1, 1),
+                    per_vertex_color=color,
+                    radius = particleRadius
+                    )
 
     canvas.scene(scene)
     window.show()
