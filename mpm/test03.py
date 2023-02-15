@@ -29,7 +29,7 @@ rho = 1.0 # density
 p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
 E = 400 #400  # checkborar pattern
-nu = 0.25
+nu = 0.2
 mu_0 = E / (2 *( 1 + nu ))
 lambda_0 = E * nu / ((1+nu)*(1-2*nu)) # lame parameters
 
@@ -41,7 +41,7 @@ grid_m = ti.field(float, (grid_size[0], grid_size[1], grid_size[2]))
 #
 
 # number of particle
-n = int(2 * 1e5)#100000
+n = int(1 * 1e5)#100000
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 C = ti.Matrix.field(3, 3, ti.f32, shape=(n)) # affine velocity
@@ -73,6 +73,7 @@ def init():
         J[i] = 1
         F[i] = ti.Matrix.identity(float, 3)
         material[i] = i // group_size % 3
+        #material[i] = 1
         color[i] = (colorArr[_gid, 0], 
                     colorArr[_gid, 1], 
                     colorArr[_gid, 2])
@@ -213,12 +214,46 @@ def boundary_condition():
         if k > grid_size[2] - bound and grid_v[i, j, k].z > 0:
             grid_v[i, j, k].z = 0
         
+        # wall
+        """        
+        x_bd = 16
+        bd_w = 1
+        j_bd= 6
+        if i >= x_bd and i <= x_bd + bd_w and j <= j_bd:
+            grid_v[i, j, k].x = 0
+            grid_v[i, j, k].y = 0
+            grid_v[i, j, k].z = 0
+        """
+
+
 
 @ti.kernel 
 def advection_particle():    
     for p in pos:       
         pos[p] += dt * vel[p]        
+        #   cutting
+        edge_x = 0.35
+        edge_y = 0.7
+        edge_w = 0.01
+        if pos[p].y > 0 and pos[p].y  < edge_y and abs(pos[p].x - edge_x) < edge_w:
+            if pos[p].x  > edge_x:
+                vel[p].x = (edge_w - abs(pos[p].x - edge_x))*18000
+            else:
+                vel[p].x = -(edge_w - abs(pos[p].x - edge_x))*18000
 
+def setBoundary():
+    box_anchors[0] = ti.Vector([0.35, 0.5, 0.0])
+    box_anchors[1] = ti.Vector([0.35, 0.5, 1.0])
+    box_anchors[2] = ti.Vector([0.35, 0.0, 0.0])
+    box_anchors[3] = ti.Vector([0.35, 0.0, 1.0])
+    box_lines_indices[0] = 0
+    box_lines_indices[1] = 1
+    box_lines_indices[2] = 0
+    box_lines_indices[3] = 2
+    box_lines_indices[4] = 1
+    box_lines_indices[5] = 3
+    box_lines_indices[6] = 2
+    box_lines_indices[7] = 3
 
 def update():
     clear_grid()
@@ -250,6 +285,9 @@ scene.ambient_light((0.75, 0.75, 0.75))
 
 init()
 
+box_anchors = ti.Vector.field(3, dtype=ti.f32, shape = 8)
+box_lines_indices = ti.field(int, shape=(2 * 12))
+setBoundary()
 
 while window.running:
     ti.deactivate_all_snodes()  
@@ -268,6 +306,6 @@ while window.running:
                     per_vertex_color=color,
                     radius = particleRadius
                     )
-
+    scene.lines(box_anchors, indices=box_lines_indices, color = (0.99, 0.68, 0.28), width = 1.0)
     canvas.scene(scene)
     window.show()
