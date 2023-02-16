@@ -352,7 +352,7 @@ def jacobi_iter():
                 p_z2 = 0.0
                 n -=1
             
-            #？？？？
+            #？？？？ 此处需要改成隐式求解
             #new_pressure[i, j, k] = (1 - damped_jacobi_weight) * pressure[i, j, k] + damped_jacobi_weight * ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx ** 2 ) / n
             new_pressure[i, j, k] = ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx**2 ) / n
         else:

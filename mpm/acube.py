@@ -117,7 +117,8 @@ def substep():
             weight = w[i][0] * w[j][1]
             new_v += weight * g_v
             new_C += 4 * inv_dx * weight * g_v.outer_product(dpos)
-        v[p], C[p] = new_v*0.995, new_C*0.995
+        #v[p], C[p] = new_v*0.995, new_C*0.995
+        v[p], C[p] = new_v, new_C
         x[p] += dt * v[p]  # advection
         # Cut
         if x[p][1] > knife[now_level[None]][0,1] and x[p][1] < knife[now_level[None]][1,1] and abs(x[p][0] - knife[now_level[None]][0,0]) < 0.01:

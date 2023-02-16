@@ -14,21 +14,21 @@ import taichi.math as tm
 
 f32 = ti.f32
 i32 = ti.i32
-ti.init(arch=ti.vulkan)
+ti.init(arch=ti.gpu)
 
-numSteps = 25
+numSteps = 10
 particleRadius = 0.002
-dt = 2e-4 # 2e-4 not move
+dt = 1e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
-grid_n = 32
+grid_n = 64
 dx = 1 / grid_n
 dx_inv = float(grid_n)
 rho = 1.0 # density
 p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
-E = 400 #400  # checkborar pattern
+E = 5000 #400  # checkborar pattern
 nu = 0.2
 mu_0 = E / (2 *( 1 + nu ))
 lambda_0 = E * nu / ((1+nu)*(1-2*nu)) # lame parameters
@@ -67,13 +67,13 @@ def init():
         _row = _gid%3
         pos[i] = ti.Vector([
             ti.random() * 0.1 + 0.3 * _col, 
-            ti.random() * 0.3 + 0.5 , 
+            ti.random() * 0.1 + 0.5 , 
             ti.random() * 0.1 + 0.2 * _row])
         vel[i] = [0, 0, 0]
         J[i] = 1
         F[i] = ti.Matrix.identity(float, 3)
         #material[i] = i // group_size % 3
-        material[i] = 2
+        material[i] = 1
         color[i] = (colorArr[_gid, 0], 
                     colorArr[_gid, 1], 
                     colorArr[_gid, 2])
@@ -101,8 +101,6 @@ def p2g():
         h = ti.exp(10 * (1.0 - J[p]))
         if material[p] == 1:  # jelly, make it softer
             h = 0.3
-        #if material[p] == 2:  # jelly, make it softer
-        #    h = 0.3
         mu, la = mu_0 * h, lambda_0 * h
         if material[p] == 0:  # liquid
             mu = 0.0
@@ -113,7 +111,7 @@ def p2g():
         for d in ti.static(range(3)):
             #new_sig = sig[d, d, d]
             new_sig = sig[d, d]
-            if material[p] == 2:  # Snow
+            if material[p] != 0:  # Snow
                 #new_sig = ti.min(ti.max(sig[d, d, d], 1 - 2.5e-2),
                 new_sig = ti.min(ti.max(sig[d, d], 1 - 2.5e-2),
                                  1 + 4.5e-3)  # Plasticity
