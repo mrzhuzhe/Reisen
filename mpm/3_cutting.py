@@ -72,8 +72,8 @@ def init():
         vel[i] = [0, 0, 0]
         J[i] = 1
         F[i] = ti.Matrix.identity(float, 3)
-        material[i] = i // group_size % 3
-        #material[i] = 1
+        #material[i] = i // group_size % 3
+        material[i] = 2
         color[i] = (colorArr[_gid, 0], 
                     colorArr[_gid, 1], 
                     colorArr[_gid, 2])
@@ -101,6 +101,8 @@ def p2g():
         h = ti.exp(10 * (1.0 - J[p]))
         if material[p] == 1:  # jelly, make it softer
             h = 0.3
+        #if material[p] == 2:  # jelly, make it softer
+        #    h = 0.3
         mu, la = mu_0 * h, lambda_0 * h
         if material[p] == 0:  # liquid
             mu = 0.0
