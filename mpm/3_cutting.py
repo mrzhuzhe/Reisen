@@ -111,7 +111,7 @@ def p2g():
         for d in ti.static(range(3)):
             #new_sig = sig[d, d, d]
             new_sig = sig[d, d]
-            if material[p] != 0:  # Snow
+            if material[p] == 2:  # Snow
                 #new_sig = ti.min(ti.max(sig[d, d, d], 1 - 2.5e-2),
                 new_sig = ti.min(ti.max(sig[d, d], 1 - 2.5e-2),
                                  1 + 4.5e-3)  # Plasticity

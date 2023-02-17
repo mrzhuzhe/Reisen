@@ -3,10 +3,10 @@ import taichi.math as tm
 
 f32 = ti.f32
 i32 = ti.i32
-ti.init(arch=ti.vulkan)
+ti.init(arch=ti.cuda)
 
 numSteps = 1
-particleRadius = 0.05
+particleRadius = 0.005
 dt = 0.01
 #g = ti.Vector((0, 0, -9.81), ti.f32)
 rho = 1000.0 # density
@@ -384,7 +384,7 @@ def solve_pressure():
 
 @ti.kernel
 def project_velocity():     
-    scale = dt / rho / dx
+    scale = dt / (rho * dx)
     for i, j, k in ti.ndrange(grid_size[0], grid_size[1], grid_size[2]):
         if is_fluid(i-1, j, k) or is_fluid(i, j, k):
             if is_solid(i-1, j, k) or is_solid(i, j, k):

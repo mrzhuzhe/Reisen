@@ -6,7 +6,7 @@ i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
 numSteps = 1
-particleRadius = 0.05
+particleRadius = 0.005
 dt = 0.01
 #g = ti.Vector((0, 0, -9.81), ti.f32)
 rho = 1000.0 # density
@@ -20,8 +20,8 @@ FLUID = 0
 AIR = 1
 SOLID = 2
 
-mu = 0.6 # friction 
-b_mu = 0.8 # boundary friction
+#mu = 0.6 # friction 
+#b_mu = 0.8 # boundary friction
 
 # 
 
@@ -60,7 +60,7 @@ new_pressure = ti.field(f32, shape=grid_size)
 #
 
 # number of particle
-n = 100000
+n = 160000 #39936
 pos = ti.Vector.field(3, ti.f32, shape=(n))
 vel = ti.Vector.field(3, ti.f32, shape=(n))
 
@@ -287,6 +287,7 @@ def advection_particle():
     for p in pos:
         _p = pos[p]
         _v = vel[p]
+        #"""
         for i in ti.static(range(3)):
             if _p[i] <= dx:
                 _p[i] = dx
@@ -294,6 +295,7 @@ def advection_particle():
             if _p[i] >= grid_size[i] * dx - dx:
                 _p[i] = grid_size[i] * dx - dx
                 _v[i] = 0
+        #"""        
         pos[p] = _p
         vel[p] = _v
 
@@ -309,9 +311,10 @@ def compute_divergence():
             divergence[i, j, k] = 0
         divergence[i, j, k] /= dx
 
+bound = 0
 @ti.func
 def is_valid(i, j, k):
-    return 0 <= i < grid_size[0] and 0 <= j < grid_size[1] and 0 <= k < grid_size[2]
+    return bound <= i < grid_size[0] - bound and bound <= j < grid_size[1] - bound and bound <= k < grid_size[2] - bound
 
 @ti.func
 def is_solid(i, j, k):
@@ -321,6 +324,7 @@ def is_solid(i, j, k):
 def is_fluid(i, j, k):
     return is_valid(i, j, k) and cell_type[i, j, k] == FLUID
 
+damped_jacobi_weight = 1
 @ti.kernel
 def jacobi_iter():
     for i, j, k in pressure:
@@ -353,8 +357,8 @@ def jacobi_iter():
                 n -=1
             
             #？？？？ 此处需要改成隐式求解
-            #new_pressure[i, j, k] = (1 - damped_jacobi_weight) * pressure[i, j, k] + damped_jacobi_weight * ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx ** 2 ) / n
-            new_pressure[i, j, k] = ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx**2 ) / n
+            new_pressure[i, j, k] = (1 - damped_jacobi_weight) * pressure[i, j, k] + damped_jacobi_weight * ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx ** 2 ) / n
+            #new_pressure[i, j, k] = ( p_x1 + p_x2 + p_y1 + p_y2 + p_z1 + p_z2 - div * rho / dt * dx**2 ) / n
         else:
             new_pressure[i, j, k] = 0.0
 

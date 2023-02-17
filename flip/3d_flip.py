@@ -6,7 +6,7 @@ i32 = ti.i32
 ti.init(arch=ti.vulkan)
 
 numSteps = 1
-particleRadius = 0.05
+particleRadius = 0.005
 dt = 0.01
 #g = ti.Vector((0, 0, -9.81), ti.f32)
 rho = 1000.0 # density
@@ -20,8 +20,8 @@ FLUID = 0
 AIR = 1
 SOLID = 2
 
-mu = 0.6 # friction 
-b_mu = 0.8 # boundary friction
+#mu = 0.6 # friction 
+#b_mu = 0.8 # boundary friction
 
 # 
 
