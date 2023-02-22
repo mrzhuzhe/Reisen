@@ -16,19 +16,19 @@ f32 = ti.f32
 i32 = ti.i32
 ti.init(arch=ti.gpu)
 
-numSteps = 10
+numSteps = 25
 particleRadius = 0.002
 dt = 1e-4 # 2e-4 not move
 g = ti.Vector((0, -9.81, 0), ti.f32)
 bound = 3
 #dx = 0.1 # grid quantitle size
-grid_n = 64
+grid_n = 32
 dx = 1 / grid_n
 dx_inv = float(grid_n)
 rho = 1.0 # density
 p_vol = (dx * 0.5)**2
 p_mass = p_vol * rho
-E = 5000 #400  # checkborar pattern
+E = 100 #400  # checkborar pattern
 nu = 0.2
 mu_0 = E / (2 *( 1 + nu ))
 lambda_0 = E * nu / ((1+nu)*(1-2*nu)) # lame parameters
@@ -67,13 +67,13 @@ def init():
         _row = _gid%3
         pos[i] = ti.Vector([
             ti.random() * 0.1 + 0.3 * _col, 
-            ti.random() * 0.1 + 0.5 , 
+            ti.random() * 0.3 + 0.5 , 
             ti.random() * 0.1 + 0.2 * _row])
         vel[i] = [0, 0, 0]
         J[i] = 1
         F[i] = ti.Matrix.identity(float, 3)
         #material[i] = i // group_size % 3
-        material[i] = 1
+        material[i] = 0
         color[i] = (colorArr[_gid, 0], 
                     colorArr[_gid, 1], 
                     colorArr[_gid, 2])
@@ -236,10 +236,10 @@ def advection_particle():
         edge_y = 0.7
         edge_w = 0.01
         if pos[p].y > 0 and pos[p].y  < edge_y and abs(pos[p].x - edge_x) < edge_w:
-            if pos[p].x  > edge_x:
-                vel[p].x = (edge_w - abs(pos[p].x - edge_x))*18000
+            if pos[p].x  >= edge_x:
+                vel[p].x = (edge_w - abs(pos[p].x - edge_x))*10000
             else:
-                vel[p].x = -(edge_w - abs(pos[p].x - edge_x))*18000
+                vel[p].x = -(edge_w - abs(pos[p].x - edge_x))*10000
 
 def setBoundary():
     box_anchors[0] = ti.Vector([0.35, 0.5, 0.0])
