@@ -57,6 +57,7 @@ class ParticleSystem:
         self.object_id = ti.field(dtype=int, shape=self.particle_max_num)
         self.x = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.x_0 = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
+        # # TODO: Here we actually only need to store rigid boides, however the object id of rigid may not start from 0, so allocate center of mass for all objects
         self.rigid_rest_cm = ti.Vector.field(3, dtype=float, shape=len(rigid_blocks) + len(fluid_blocks))
 
         self.v = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
