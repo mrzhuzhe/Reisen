@@ -59,17 +59,17 @@ class WCSPHSolver(SPHBase):
     @ti.func
     def compute_densities_task(self, p_i, p_j, ret: ti.template()):
         x_i = self.ps.x[p_i]
-        #if self.ps.material[p_j] == self.ps.material_fluid:
+        if self.ps.material[p_j] == self.ps.material_fluid:
             # Fluid neighbors
-        x_j = self.ps.x[p_j]
-        ret += self.ps.m_V[p_j] * self.cubic_kernel((x_i - x_j).norm())
-        """
+            x_j = self.ps.x[p_j]
+            ret += self.ps.m_V[p_j] * self.cubic_kernel((x_i - x_j).norm())
+        #"""
         elif self.ps.material[p_j] == self.ps.material_solid:
             # Boundary neighbors
             ## Akinci2012
             x_j = self.ps.x[p_j]
             ret += self.ps.m_V[p_j] * self.cubic_kernel((x_i - x_j).norm())
-        """
+        #"""
     
     @ti.kernel
     def compute_pressure_forces(self):

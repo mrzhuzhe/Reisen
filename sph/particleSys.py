@@ -34,7 +34,8 @@ class ParticleSystem:
         self.particle_radius = _config["Configuration"]["particleRadius"]
 
         fluid_particle_num = 0
-        for fluid in _config["FluidBlocks"]:
+        fluid_blocks = _config["FluidBlocks"]
+        for fluid in fluid_blocks:
             particle_num = self.compute_cube_particle_num(fluid["start"], fluid["end"])
             fluid["particleNum"] = particle_num
             self.object_collection[fluid["objectId"]] = fluid
@@ -56,7 +57,7 @@ class ParticleSystem:
         self.object_id = ti.field(dtype=int, shape=self.particle_max_num)
         self.x = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.x_0 = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
-        self.rigid_rest_cm = ti.Vector.field(3, dtype=float, shape=len(rigid_blocks))
+        self.rigid_rest_cm = ti.Vector.field(3, dtype=float, shape=len(rigid_blocks) + len(fluid_blocks))
 
         self.v = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
         self.acceleration = ti.Vector.field(3, dtype=float, shape=self.particle_max_num)
