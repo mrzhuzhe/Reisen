@@ -3,6 +3,8 @@
 // Created by goksu on 4/6/19.
 //
 
+//  https://github.com/1393650770/Games101-Homework/blob/main/Homework2/Answers/HomeWork2/rasterizer.cpp
+
 #include <algorithm>
 #include <vector>
 #include "rasterizer.hpp"

@@ -6,6 +6,22 @@
 
 constexpr double MY_PI = 3.1415926;
 
+Eigen::Matrix4f get_rotation(Vector3f axis, float angle){
+    angle=angle/180.f*MY_PI;
+    Eigen::Matrix4f Result = Eigen::Matrix4f::Identity();
+    Eigen::Matrix3f E = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f N = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f ResultMat3 = Eigen::Matrix3f::Identity();
+    N << 0, -axis[2], axis[1], axis[2], 0, -axis[0], -axis[1], axis[0], 0;
+    ResultMat3 = E*cos(angle) + (1-cos(angle))*axis*axis.transpose() + sin(angle)*N;
+    Result << ResultMat3(0, 0), ResultMat3(0, 1), ResultMat3(0, 2), 0,
+            ResultMat3(1, 0), ResultMat3(1, 1), ResultMat3(1, 2), 0,
+            ResultMat3(2, 0), ResultMat3(2, 1), ResultMat3(2, 2), 0, 
+                0, 0, 0, 1;
+    return Result;
+}
+
+
 Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 {
     Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
@@ -91,10 +107,13 @@ int main(int argc, const char** argv)
     int key = 0;
     int frame_count = 0;
 
+    Eigen::Vector3f axis = {0, 10, 10};
+
     if (command_line) {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        //r.set_model(get_model_matrix(angle));
+        r.set_model(get_rotation(axis, angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
 
@@ -110,13 +129,14 @@ int main(int argc, const char** argv)
     while (key != 27) {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        //r.set_model(get_model_matrix(angle));
+        r.set_model(get_rotation(axis, angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
 
         r.draw(pos_id, ind_id, rst::Primitive::Triangle);
 
-        cv::Mat image(640, 640, CV_32FC3, r.frame_buffer().data());
+        cv::Mat image(700, 700, CV_32FC3, r.frame_buffer().data());
         image.convertTo(image, CV_8UC3, 1.0f);
         cv::imshow("image", image);
         key = cv::waitKey(10);
