@@ -116,7 +116,7 @@ int main(int argc, const char** argv)
 
         r.draw(pos_id, ind_id, rst::Primitive::Triangle);
 
-        cv::Mat image(700, 700, CV_32FC3, r.frame_buffer().data());
+        cv::Mat image(640, 640, CV_32FC3, r.frame_buffer().data());
         image.convertTo(image, CV_8UC3, 1.0f);
         cv::imshow("image", image);
         key = cv::waitKey(10);
