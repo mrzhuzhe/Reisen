@@ -47,7 +47,20 @@ static bool insideTriangle(int x, int y, const Vector3f* _v)
     // TODO : Implement this function to check if the point (x, y) is inside the triangle represented by _v[0], _v[1], _v[2]
     Vector3f P=Vector3f(x, y, _v[0].z);
     Vector3f AC=_v[2]-_v[0];
-    Vector2f CB=_v[1]-_v[2];
+    Vector3f CB=_v[1]-_v[2];
+    Vector3f BA=_v[0]-_v[1];
+    Vector3f AP=P-_v[0];
+    Vector3f BP=P-_v[1];
+    Vector3f CP=P-_v[2];
+
+    if(AP.cross(AC).dot(BP.cross(BA)) >0.0f &&
+        BP.cross(BA).dot(CP.cross(CB))>0.0f &&
+        CP.cross(CB).dot(AP.cross(AC))>0.0f
+    ){
+        return true;
+    }
+    return false;
+
 }
 
 static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
@@ -121,6 +134,16 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     //z_interpolated *= w_reciprocal;
 
     // TODO : set the current pixel (use the set_pixel function) to the color of the triangle (use getColor function) if it should be painted.
+    bool IsUseSuperSampling=true;
+
+    std::vector<Vector3f> SampleOffset={
+        {0.25f,0.25f,0},
+        {0.25f,0.75f,0},
+        {0.75f,0.25f,0}.
+        {0.75f,0.75f,0}
+    };
+
+    
 }
 
 void rst::rasterizer::set_model(const Eigen::Matrix4f& m)
