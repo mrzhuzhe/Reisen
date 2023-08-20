@@ -7,13 +7,13 @@
 //int fboSize = 2048;
 //int nVertices = 100;
 
-int fboSize = 1024;
-int nVertices = 100;
+int fboSize = 256;
+int nVertices = 10;
 
 // int phase1Band = 32;
 // int phase2Band = 32;
-int phase1Band = 16;
-int phase2Band = 16;
+int phase1Band = 8;
+int phase2Band = 8;
 int phase3Band = 2;
 
 typedef struct {

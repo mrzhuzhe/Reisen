@@ -1,6 +1,6 @@
 #include "pba2D.h"
 
-#define BLOCKSIZE 64
+#define BLOCKSIZE 32
 
 short2 **pbaTextures;
 short2 *margin;
