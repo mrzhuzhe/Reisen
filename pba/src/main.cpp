@@ -10,8 +10,10 @@
 int fboSize = 1024;
 int nVertices = 100;
 
-int phase1Band = 32;
-int phase2Band = 32;
+// int phase1Band = 32;
+// int phase2Band = 32;
+int phase1Band = 16;
+int phase2Band = 16;
 int phase3Band = 2;
 
 typedef struct {
