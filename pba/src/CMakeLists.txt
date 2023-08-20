@@ -7,3 +7,8 @@ set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
 project(pbacuda LANGUAGES CXX CUDA)
 add_executable(main main.cpp)
+
+
+add_library(pba2D SHARED pba/pba2DHost.cu)
+
+target_link_libraries(main pba2D)

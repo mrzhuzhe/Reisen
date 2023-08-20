@@ -4,7 +4,10 @@
 #include <climits>
 //#include <ctype.h>
 
-int fboSize = 2048;
+//int fboSize = 2048;
+//int nVertices = 100;
+
+int fboSize = 1024;
 int nVertices = 100;
 
 int phase1Band = 32;
@@ -66,7 +69,7 @@ void generateRandomPoints(int width, int height, int nPoints)
 // Deinitialization
 void deinitialization()
 {
-    //pba2DDeinitialization(); 
+    pba2DDeinitialization(); 
 
     free(inputPoints); 
     free(inputVoronoi); 
@@ -77,13 +80,25 @@ void deinitialization()
 #define ULL unsigned long long
 void initialization()
 {
-    //pba2DInitialization(fboSize, phase1Band); 
+    pba2DInitialization(fboSize, phase1Band); 
 
     inputPoints     = (short *) malloc((ULL)nVertices * 2ULL * (ULL)sizeof(short)); 
     inputVoronoi    = (short *) malloc((ULL)fboSize * (ULL)fboSize * 2ULL * (ULL)sizeof(short)); 
     outputVoronoi   = (short *) malloc((ULL)fboSize * (ULL)fboSize * 2ULL * (ULL)sizeof(short)); 
 }
 #undef ULL
+
+void print_mat(short *mat){
+    for (int i = 0; i < fboSize; i++) {
+        for (int j = 0; j < fboSize; j++) {
+            int id = j * fboSize + i; 
+            std::cout << " (" <<  mat[id * 2] << "," 
+            << mat[id * 2 + 1] << ") "; 
+        }
+        std::cout << "\n";
+    }
+}
+
 
 // Verify the output Voronoi Diagram
 void verifyResult(ErrorStatistics *e) 
@@ -143,7 +158,9 @@ void runTests()
 {
     generateRandomPoints(fboSize, fboSize, nVertices); 
 
-    //pba2DVoronoiDiagram(inputVoronoi, outputVoronoi, phase1Band, phase2Band, phase3Band); 
+    //print_mat(inputVoronoi);
+
+    pba2DVoronoiDiagram(inputVoronoi, outputVoronoi, phase1Band, phase2Band, phase3Band); 
 
     printf("Verifying the result...\n"); 
     verifyResult(&pba);
