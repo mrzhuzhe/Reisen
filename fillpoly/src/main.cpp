@@ -1,7 +1,10 @@
 
 #include <stdio.h>
 #include <math.h>
-#include <GL/glut.h>
+//#include <iostream>
+#include <stdlib.h>
+
+//#include <GL/glut.h>
 #define maxHt 800
 #define maxWd 600
 #define maxVer 10000
@@ -292,19 +295,19 @@ void ScanlineFill()
                 }
              
              
-            if(FillFlag)
-            {
-                //drawing actual lines...
-                glColor3f(0.0f,0.7f,0.0f);
+            // if(FillFlag)
+            // {
+            //     //drawing actual lines...
+            //     glColor3f(0.0f,0.7f,0.0f);
                  
-                glBegin(GL_LINES);
-                glVertex2i(x1,i);
-                glVertex2i(x2,i);
-                glEnd();
-                glFlush();        
+            //     glBegin(GL_LINES);
+            //     glVertex2i(x1,i);
+            //     glVertex2i(x2,i);
+            //     glEnd();
+            //     glFlush();        
                  
-                // printf("\nLine drawn from %d,%d to %d,%d",x1,i,x2,i);
-            }
+            //     // printf("\nLine drawn from %d,%d to %d,%d",x1,i,x2,i);
+            // }
              
         }
              
@@ -322,21 +325,12 @@ printf("\nScanline filling complete");
 }
  
  
-void myInit(void)
-{
- 
-    glClearColor(1.0,1.0,1.0,0.0);
-    glMatrixMode(GL_PROJECTION);
-     
-    glLoadIdentity();
-    gluOrtho2D(0,maxHt,0,maxWd);
-    glClear(GL_COLOR_BUFFER_BIT);
-}
+// c
  
 void drawPolyDino()
 {
  
-    glColor3f(1.0f,0.0f,0.0f);
+    //glColor3f(1.0f,0.0f,0.0f);
     int count = 0,x1,y1,x2,y2;
     rewind(fp);
     while(!feof(fp) )
@@ -356,14 +350,14 @@ void drawPolyDino()
         {
             fscanf(fp, "%d,%d", &x2, &y2);
             printf("\n%d,%d", x2, y2);
-            glBegin(GL_LINES);
-                glVertex2i( x1, y1);
-                glVertex2i( x2, y2);
-            glEnd();
+            // glBegin(GL_LINES);
+            //     glVertex2i( x1, y1);
+            //     glVertex2i( x2, y2);
+            // glEnd();
             storeEdgeInTable(x1, y1, x2, y2);//storage of edges in edge table.
              
              
-            glFlush();
+            // glFlush();
         }
     }
          
@@ -380,22 +374,25 @@ void drawDino(void)
     ScanlineFill();//actual calling of scanline filling..
 }
  
-void main(int argc, char** argv)
+int main(int argc, char** argv)
 {
-    fp=fopen ("PolyDino.txt","r");
+    fp=fopen("./src/PolyDino.txt","r");
+    //std::cout << fp << std::endl;
     if ( fp == NULL )
     {
-        printf( "Could not open file" ) ;
-        return;
+        printf( "Could not open file\n" ) ;
+        return 1;
     }
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
-    glutInitWindowSize(maxHt,maxWd);
-    glutInitWindowPosition(100, 150);
-    glutCreateWindow("Scanline filled dinosaur");
-    myInit();
-    glutDisplayFunc(drawDino);
-     
-    glutMainLoop();
+    // glutInit(&argc, argv);
+    // glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
+    // glutInitWindowSize(maxHt,maxWd);
+    // glutInitWindowPosition(100, 150);
+    // glutCreateWindow("Scanline filled dinosaur");
+    //myInit();
+    //glutDisplayFunc(drawDino);
+    drawDino();
+
+    //glutMainLoop();
     fclose(fp);
+    return 0;
 }
