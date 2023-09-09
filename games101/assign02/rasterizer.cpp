@@ -143,7 +143,35 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
         {0.75f,0.75f,0}
     };
 
-    
+    float minX=t.v[0].x(), max=t.v[0].x(), minY=t.v[0].y(), maxY=t.v[0].y(), minZ=t.v[0].z(), maxZ=t.v[0].z();
+    for(auto& v:t.v)
+    {
+        minX=std::min(minX, v.x());
+        maxX=std::min(maxX, v.x());
+        minY=std::min(minY, v.y());
+        maxY=std::min(maxY, v.y());
+        minZ=std::min(minZ, v.z());
+        maxZ=std::min(maxZ, v.z());
+    }
+    minX=(int)std::floor(minX);
+    maxX=(int)std::ceil(maxX);
+    minY=(int)std::floor(minY);
+    maxY=(int)std::ceil(maxY);
+    for(int i=minX; i <maxX; i++){
+        for (int j =minY; j< maxY; j++){
+            int Index=get_index(i, j);
+            int l = 0;
+            int IsInTriangleCount=0;
+            int IsDontBeCover=0;
+            if (IsUseSuperSampling)
+            {
+                for(auto&k : SampleOffset){
+                    float SampleX=i+k.x();
+                    float SampleY=j+k.y();
+                }
+            }
+        }
+    }
 }
 
 void rst::rasterizer::set_model(const Eigen::Matrix4f& m)
