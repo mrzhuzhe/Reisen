@@ -45,7 +45,7 @@ auto to_vec4(const Eigen::Vector3f& v3, float w = 1.0f)
 static bool insideTriangle(int x, int y, const Vector3f* _v)
 {   
     // TODO : Implement this function to check if the point (x, y) is inside the triangle represented by _v[0], _v[1], _v[2]
-    Vector3f P=Vector3f(x, y, _v[0].z);
+    Vector3f P=Vector3f(x, y, _v[0].z());
     Vector3f AC=_v[2]-_v[0];
     Vector3f CB=_v[1]-_v[2];
     Vector3f BA=_v[0]-_v[1];
@@ -139,11 +139,11 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     std::vector<Vector3f> SampleOffset={
         {0.25f,0.25f,0},
         {0.25f,0.75f,0},
-        {0.75f,0.25f,0}.
+        {0.75f,0.25f,0},
         {0.75f,0.75f,0}
     };
 
-    float minX=t.v[0].x(), max=t.v[0].x(), minY=t.v[0].y(), maxY=t.v[0].y(), minZ=t.v[0].z(), maxZ=t.v[0].z();
+    float minX=t.v[0].x(), maxX=t.v[0].x(), minY=t.v[0].y(), maxY=t.v[0].y(), minZ=t.v[0].z(), maxZ=t.v[0].z();
     for(auto& v:t.v)
     {
         minX=std::min(minX, v.x());
@@ -165,11 +165,46 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
             int IsDontBeCover=0;
             if (IsUseSuperSampling)
             {
-                for(auto&k : SampleOffset){
+                for(auto&k : SampleOffset)
+                {
                     float SampleX=i+k.x();
                     float SampleY=j+k.y();
+                    if (insideTriangle(SampleX, SampleY, t.v))
+                    {
+                        auto[alpha, beta, gamma] = computeBarycentric2D(SampleX, SampleY, t.v);
+                        float w_reciprocal = 1.0/(alpha/v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                        float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                        z_interpolated *= w_reciprocal;
+
+                        if(z_interpolated < surpersample_depth_buf[Index][l])
+                        {
+                            surpersample_depth_buf[Index][l]=z_interpolated;
+                            IsDontBeCover++;
+                        }
+                        IsInTriangleCount++;
+                    }
+                    l+=1;
+                }
+                Vector3f color = t.getColor() * IsInTriangleCount/4.0f;
+                if (IsDontBeCover>0)
+                {
+                    set_pixel(Vector3f(i, j, 0), color);
                 }
             }
+            else 
+            {
+                if (insideTriangle(i+0.5f, j+0.5f, t.v)){
+                    auto[alpha, beta, gamma] = computeBarycentric2D(i+0.5f, j+0.5f, t.v);
+                    float w_reciprocal = 1.0/(alpha/v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                    float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                    z_interpolated *= w_reciprocal;
+
+                    if (z_interpolated < depth_buf[Index]){
+                        depth_buf[Index]=z_interpolated;
+                        set_pixel(Vector3f(i, j, 1), t.getColor());
+                    }
+                }
+            }            
         }
     }
 }
