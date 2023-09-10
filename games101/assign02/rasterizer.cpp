@@ -143,7 +143,9 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
         {0.75f,0.75f,0}
     };
 
-    float minX=t.v[0].x(), maxX=t.v[0].x(), minY=t.v[0].y(), maxY=t.v[0].y(), minZ=t.v[0].z(), maxZ=t.v[0].z();
+    float minX=t.v[0].x(), maxX=t.v[0].x(), 
+    minY=t.v[0].y(), maxY=t.v[0].y(), 
+    minZ=t.v[0].z(), maxZ=t.v[0].z();
     for(auto& v:t.v)
     {
         minX=std::min(minX, v.x());
@@ -176,9 +178,9 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                         float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
                         z_interpolated *= w_reciprocal;
 
-                        if(z_interpolated < surpersample_depth_buf[Index][l])
+                        if(z_interpolated < supersample_depth_buf[Index][l])
                         {
-                            surpersample_depth_buf[Index][l]=z_interpolated;
+                            supersample_depth_buf[Index][l]=z_interpolated;
                             IsDontBeCover++;
                         }
                         IsInTriangleCount++;
@@ -232,7 +234,10 @@ void rst::rasterizer::clear(rst::Buffers buff)
     }
     if ((buff & rst::Buffers::Depth) == rst::Buffers::Depth)
     {
+        std::array<float,4> inf;
+        inf.fill(std::numeric_limits<float>::infinity());
         std::fill(depth_buf.begin(), depth_buf.end(), std::numeric_limits<float>::infinity());
+        std::fill(supersample_depth_buf.begin(), supersample_depth_buf.end(), inf);
     }
 }
 
@@ -240,6 +245,8 @@ rst::rasterizer::rasterizer(int w, int h) : width(w), height(h)
 {
     frame_buf.resize(w * h);
     depth_buf.resize(w * h);
+    supersample_corlor_buf.resize(w*h);
+    supersample_depth_buf.resize(w*h);
 }
 
 int rst::rasterizer::get_index(int x, int y)
