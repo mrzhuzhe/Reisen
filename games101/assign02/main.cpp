@@ -25,14 +25,50 @@ Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 Eigen::Matrix4f get_model_matrix(float rotation_angle)
 {
     Eigen::Matrix4f model = Eigen::Matrix4f::Identity();
+    rotation_angle=rotation_angle/180.0f*MY_PI;
+
+    model<<cos(rotation_angle),-sin(rotation_angle),0,0,
+    sin(rotation_angle),cos(rotation_angle),0,0,
+    0,0,1,0,
+    0,0,0,1;
     return model;
 }
 
-Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio, float zNear, float zFar)
+//Rodrigues rotation formula
+Eigen::Matrix4f get_rotation(Vector3f axis,float angle)
 {
-    // TODO: Copy-paste your implementation from the previous assignment.
-    Eigen::Matrix4f projection;
+    angle=angle/180.0f*MY_PI;
+    Eigen::Matrix4f Result = Eigen::Matrix4f::Identity();
+    Eigen::Matrix3f E = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f N = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f ResultMat3 = Eigen::Matrix3f::Identity();
+    N<< 0,-axis[2],axis[1],
+        axis[2],0,-axis[0],
+        -axis[1],axis[0],0;
+    ResultMat3 = E*cos(angle) +(1-cos(angle))*axis*axis.transpose()+ sin(angle)*N;
+    Result<<ResultMat3(0,0),ResultMat3(0,1),ResultMat3(0,2),0,
+            ResultMat3(1,0),ResultMat3(1,1),ResultMat3(1,2),0,
+            ResultMat3(2,0),ResultMat3(2,1),ResultMat3(2,2),0,
+            0,0,0,1;
+    
+    return Result;
+}
 
+Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio,
+                                      float zNear, float zFar)
+{
+    // Students will implement this function
+
+    Eigen::Matrix4f projection = Eigen::Matrix4f::Identity();
+
+    // TODO: Implement this function
+    // Create the projection matrix for the given parameters.
+    // Then return it.
+    eye_fov=eye_fov/180*MY_PI;
+    projection<<1/(aspect_ratio*tan(eye_fov/2.0f)) ,0,0,0,
+                0,1/tan(eye_fov/2.0f),0,0,
+                0,0,-(zFar+zNear)/(zFar-zNear),2*zFar*zNear/(zNear-zFar),
+                0,0,-1,0;
     return projection;
 }
 

@@ -6,6 +6,22 @@
 
 constexpr double MY_PI = 3.1415926;
 
+Eigen::Matrix4f get_rotation(Vector3f axis, float angle){
+    angle=angle/180.f*MY_PI;
+    Eigen::Matrix4f Result = Eigen::Matrix4f::Identity();
+    Eigen::Matrix3f E = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f N = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f ResultMat3 = Eigen::Matrix3f::Identity();
+    N << 0, -axis[2], axis[1], axis[2], 0, -axis[0], -axis[1], axis[0], 0;
+    ResultMat3 = E*cos(angle) + (1-cos(angle))*axis*axis.transpose() + sin(angle)*N;
+    Result << ResultMat3(0, 0), ResultMat3(0, 1), ResultMat3(0, 2), 0,
+            ResultMat3(1, 0), ResultMat3(1, 1), ResultMat3(1, 2), 0,
+            ResultMat3(2, 0), ResultMat3(2, 1), ResultMat3(2, 2), 0, 
+                0, 0, 0, 1;
+    return Result;
+}
+
+
 Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 {
     Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
@@ -19,6 +35,7 @@ Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
     return view;
 }
 
+//   todo https://blog.csdn.net/m0_56399931/article/details/123690246
 Eigen::Matrix4f get_model_matrix(float rotation_angle)
 {
     Eigen::Matrix4f model = Eigen::Matrix4f::Identity();
@@ -26,6 +43,12 @@ Eigen::Matrix4f get_model_matrix(float rotation_angle)
     // TODO: Implement this function
     // Create the model matrix for rotating the triangle around the Z axis.
     // Then return it.
+    rotation_angle = rotation_angle / 180.f * MY_PI;
+
+    model << cos(rotation_angle), -sin(rotation_angle), 0, 0,
+            sin(rotation_angle), cos(rotation_angle), 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1;
 
     return model;
 }
@@ -35,14 +58,18 @@ Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio,
 {
     // Students will implement this function
 
-    //Eigen::Matrix4f projection = Eigen::Matrix4f::Identity();
-    Eigen::Matrix4f projection;
+    Eigen::Matrix4f projection = Eigen::Matrix4f::Identity();
+    // Eigen::Matrix4f projection;
 
-    projection << 0.1, 0, 0, 0,
-     0, 0.1, 0, 0, 
-     0, 0, 0.1, 0, 
-     0, 0, 0, 1;
-
+    // projection << 0.1, 0.2, 0, 0, 
+    // 0, 0.1, 0, 0, 
+    // 0, 0.0, 0.1, 0, 
+    // 0, 0, 0, 1;
+    eye_fov = eye_fov / 180.f * MY_PI;
+    projection<<1/(aspect_ratio*tan(eye_fov)), 0, 0, 0,
+            0,1/tan(eye_fov),0,0,
+            0,0,(zFar+zNear)/(zFar-zNear),2*zFar*zNear/(zNear-zFar),
+            0,0,1,0;
     // TODO: Implement this function
     // Create the projection matrix for the given parameters.
     // Then return it.
@@ -80,10 +107,13 @@ int main(int argc, const char** argv)
     int key = 0;
     int frame_count = 0;
 
+    Eigen::Vector3f axis = {0, 10, 10};
+
     if (command_line) {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        //r.set_model(get_model_matrix(angle));
+        r.set_model(get_rotation(axis, angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
 
@@ -99,7 +129,8 @@ int main(int argc, const char** argv)
     while (key != 27) {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        //r.set_model(get_model_matrix(angle));
+        r.set_model(get_rotation(axis, angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
 

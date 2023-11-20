@@ -3,6 +3,8 @@
 // Created by goksu on 4/6/19.
 //
 
+//  https://github.com/1393650770/Games101-Homework/blob/main/Homework2/Answers/HomeWork2/rasterizer.cpp
+
 #include <algorithm>
 #include <vector>
 #include "rasterizer.hpp"
@@ -43,6 +45,22 @@ auto to_vec4(const Eigen::Vector3f& v3, float w = 1.0f)
 static bool insideTriangle(int x, int y, const Vector3f* _v)
 {   
     // TODO : Implement this function to check if the point (x, y) is inside the triangle represented by _v[0], _v[1], _v[2]
+    Vector3f P=Vector3f(x, y, _v[0].z());
+    Vector3f AC=_v[2]-_v[0];
+    Vector3f CB=_v[1]-_v[2];
+    Vector3f BA=_v[0]-_v[1];
+    Vector3f AP=P-_v[0];
+    Vector3f BP=P-_v[1];
+    Vector3f CP=P-_v[2];
+
+    if(AP.cross(AC).dot(BP.cross(BA)) >0.0f &&
+        BP.cross(BA).dot(CP.cross(CB))>0.0f &&
+        CP.cross(CB).dot(AP.cross(AC))>0.0f
+    ){
+        return true;
+    }
+    return false;
+
 }
 
 static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
@@ -116,6 +134,81 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     //z_interpolated *= w_reciprocal;
 
     // TODO : set the current pixel (use the set_pixel function) to the color of the triangle (use getColor function) if it should be painted.
+    bool IsUseSuperSampling=true;
+
+    std::vector<Vector3f> SampleOffset={
+        {0.25f,0.25f,0},
+        {0.25f,0.75f,0},
+        {0.75f,0.25f,0},
+        {0.75f,0.75f,0}
+    };
+
+    float minX=t.v[0].x(), maxX=t.v[0].x(), 
+    minY=t.v[0].y(), maxY=t.v[0].y(), 
+    minZ=t.v[0].z(), maxZ=t.v[0].z();
+    for(auto& v:t.v)
+    {
+        minX=std::min(minX, v.x());
+        maxX=std::min(maxX, v.x());
+        minY=std::min(minY, v.y());
+        maxY=std::min(maxY, v.y());
+        minZ=std::min(minZ, v.z());
+        maxZ=std::min(maxZ, v.z());
+    }
+    minX=(int)std::floor(minX);
+    maxX=(int)std::ceil(maxX);
+    minY=(int)std::floor(minY);
+    maxY=(int)std::ceil(maxY);
+    for(int i=minX; i <maxX; i++){
+        for (int j =minY; j< maxY; j++){
+            int Index=get_index(i, j);
+            int l = 0;
+            int IsInTriangleCount=0;
+            int IsDontBeCover=0;
+            if (IsUseSuperSampling)
+            {
+                for(auto&k : SampleOffset)
+                {
+                    float SampleX=i+k.x();
+                    float SampleY=j+k.y();
+                    if (insideTriangle(SampleX, SampleY, t.v))
+                    {
+                        auto[alpha, beta, gamma] = computeBarycentric2D(SampleX, SampleY, t.v);
+                        float w_reciprocal = 1.0/(alpha/v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                        float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                        z_interpolated *= w_reciprocal;
+
+                        if(z_interpolated < supersample_depth_buf[Index][l])
+                        {
+                            supersample_depth_buf[Index][l]=z_interpolated;
+                            IsDontBeCover++;
+                        }
+                        IsInTriangleCount++;
+                    }
+                    l+=1;
+                }
+                Vector3f color = t.getColor() * IsInTriangleCount/4.0f;
+                if (IsDontBeCover>0)
+                {
+                    set_pixel(Vector3f(i, j, 0), color);
+                }
+            }
+            else 
+            {
+                if (insideTriangle(i+0.5f, j+0.5f, t.v)){
+                    auto[alpha, beta, gamma] = computeBarycentric2D(i+0.5f, j+0.5f, t.v);
+                    float w_reciprocal = 1.0/(alpha/v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                    float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                    z_interpolated *= w_reciprocal;
+
+                    if (z_interpolated < depth_buf[Index]){
+                        depth_buf[Index]=z_interpolated;
+                        set_pixel(Vector3f(i, j, 1), t.getColor());
+                    }
+                }
+            }            
+        }
+    }
 }
 
 void rst::rasterizer::set_model(const Eigen::Matrix4f& m)
@@ -141,7 +234,10 @@ void rst::rasterizer::clear(rst::Buffers buff)
     }
     if ((buff & rst::Buffers::Depth) == rst::Buffers::Depth)
     {
+        std::array<float,4> inf;
+        inf.fill(std::numeric_limits<float>::infinity());
         std::fill(depth_buf.begin(), depth_buf.end(), std::numeric_limits<float>::infinity());
+        std::fill(supersample_depth_buf.begin(), supersample_depth_buf.end(), inf);
     }
 }
 
@@ -149,6 +245,8 @@ rst::rasterizer::rasterizer(int w, int h) : width(w), height(h)
 {
     frame_buf.resize(w * h);
     depth_buf.resize(w * h);
+    supersample_corlor_buf.resize(w*h);
+    supersample_depth_buf.resize(w*h);
 }
 
 int rst::rasterizer::get_index(int x, int y)

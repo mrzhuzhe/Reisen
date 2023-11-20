@@ -92,6 +92,8 @@ namespace rst
 
         std::vector<Eigen::Vector3f> frame_buf;
 
+        std::vector<std::array<float,4>> supersample_corlor_buf;
+        std::vector<std::array<float,4>> supersample_depth_buf;
         std::vector<float> depth_buf;
         int get_index(int x, int y);
 

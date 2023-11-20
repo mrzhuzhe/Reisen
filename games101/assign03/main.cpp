@@ -50,7 +50,17 @@ Eigen::Matrix4f get_model_matrix(float angle)
 Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio, float zNear, float zFar)
 {
     // TODO: Use the same projection matrix from the previous assignments
+    Eigen::Matrix4f projection = Eigen::Matrix4f::Identity();
 
+    // TODO: Implement this function
+    // Create the projection matrix for the given parameters.
+    // Then return it.
+    eye_fov=eye_fov/180*MY_PI;
+    projection<<1/(aspect_ratio*tan(eye_fov/2.0f)) ,0,0,0,
+                0,1/tan(eye_fov/2.0f),0,0,
+                0,0,-(zFar+zNear)/(zFar-zNear),2*zFar*zNear/(zNear-zFar),
+                0,0,-1,0;
+    return projection;
 }
 
 Eigen::Vector3f vertex_shader(const vertex_shader_payload& payload)
@@ -84,7 +94,7 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     if (payload.texture)
     {
         // TODO: Get the texture value at the texture coordinates of the current fragment
-
+        return_color=payload.texture->getColorBilinear(payload.tex_coords.x(), payload.tex_coords.y());
     }
     Eigen::Vector3f texture_color;
     texture_color << return_color.x(), return_color.y(), return_color.z();
@@ -112,7 +122,14 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     {
         // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
         // components are. Then, accumulate that result on the *result_color* object.
-
+        Eigen::Vector3f LightDir = light.position-point;
+        Eigen::Vector3f ViewDir = eye_pos-point;
+        float d=LightDir.dot(LightDir);
+        Eigen::Vector3f H=(LightDir.normalized()+ViewDir.normalized()).normalized();
+        Eigen::Vector3f Ambient = ka.cwiseProduct(amb_light_intensity);
+        float LdotN = (normal.normalized()).dot(LightDir.normalized());
+        float NdotH=(H.normalized()).dot(normal.normalized());
+        Eigen::Vector3f
     }
 
     return result_color * 255.f;
