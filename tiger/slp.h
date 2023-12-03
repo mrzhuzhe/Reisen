@@ -18,7 +18,7 @@ struct A_stm_ {
         } assgin;
         struct  
         {
-            A_expList exp;
+            A_expList exps;
         } print;        
     } u;
 };
