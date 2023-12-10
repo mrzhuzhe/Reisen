@@ -1,3 +1,5 @@
+#pragma once
+
 typedef char *string;
 typedef char bool;
 

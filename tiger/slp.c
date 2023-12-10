@@ -1,8 +1,9 @@
+#include "utils.h"
 #include "slp.h"
 
 A_stm A_CompoundStm(A_stm stm1, A_stm stm2){
     A_stm s = checked_malloc(sizeof *s);
-    s->kind=A_CompoundStm;
+    s->kind=A_compoundStm;
     s->u.compound.stm1=stm1;
     s->u.compound.stm2=stm2;
     return s;
@@ -44,13 +45,14 @@ A_exp A_OpExp(A_exp left, A_binop oper, A_exp right) {
     e->u.op.oper = oper;
     e->u.op.right = right;
     return e;
+}
 
 A_exp A_EseqExp(A_stm stm, A_exp exp) {
     A_exp e = checked_malloc(sizeof *e);
     e->kind = A_eseqExp;
     e->u.eseq.stm = stm;
     e->u.eseq.exp = exp;
-    return e
+    return e;
 }
 
 A_expList A_PairExpList(A_exp head, A_expList tail) {
@@ -61,9 +63,9 @@ A_expList A_PairExpList(A_exp head, A_expList tail) {
     return e;
 }
 
-A_expList A_lastExp(A_exp exp) {
+A_expList A_lastExpExp(A_exp last) {
     A_expList e = checked_malloc(sizeof *e);
-    e->kind = A_lastExp;
+    e->kind = A_lastExpList;
     e->u.last = last;
     return e;
 }

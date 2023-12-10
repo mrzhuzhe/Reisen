@@ -1,3 +1,4 @@
+#pragma once
 #include "utils.h"
 
 typedef struct A_stm_ *A_stm;
@@ -50,7 +51,7 @@ A_exp A_NumExp(int num);
 A_exp A_OpExp(A_exp left, A_binop oper, A_exp right);
 A_exp A_EseqExp(A_stm stm, A_exp exp);
 
-struct  A_expList_ { enum { A_pairExpList, A_lastExp } kind; 
+struct  A_expList_ { enum { A_pairExpList, A_lastExpList } kind; 
     union {
         struct  
         {
@@ -61,4 +62,4 @@ struct  A_expList_ { enum { A_pairExpList, A_lastExp } kind;
 };
 
 A_expList A_PairExpList(A_exp head, A_expList tail);
-A_expList A_lastExpList(A_exp last);
+A_expList A_LastExpList(A_exp last);
