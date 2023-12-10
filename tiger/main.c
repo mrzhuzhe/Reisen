@@ -1,13 +1,10 @@
 #include <stdio.h>
 #include "utils.h"
 #include <stdlib.h>
-
+#include "utils.h"
+#include "slp.h"
 
 int main(){
-    printf(" tiger complier go go go\n");
-
-    int* a = malloc(100 * sizeof (*a));
-    a[0] = 123;
-    printf(" %d\n", a[0]);
+    A_AssignStm("a", A_OpExp(A_NumExp(5), A_plus, A_NumExp(3)));
     return 0;
 }
