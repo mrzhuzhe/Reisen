@@ -23,3 +23,17 @@ static IntList intList(int i, IntList rest) {
     l->rest = rest;
     return l;
 }
+
+static IntList linePos=NULL;
+
+void EM_newline(void){
+    lineNum++;
+    linePos = intList(EM_tokPos, linePos);
+}
+
+void EM_error(int pos, char* message, ...){
+    va_list ap;
+    IntList lines = linePos;
+    int num = lineNum;
+
+}
