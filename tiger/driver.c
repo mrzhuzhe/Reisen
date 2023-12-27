@@ -9,4 +9,4 @@ int yylex(void);
 
 string toknames[] = {
     "ID", "STRING", "INT", "COMMA"
-}
+};
