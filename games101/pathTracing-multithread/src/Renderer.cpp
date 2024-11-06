@@ -21,6 +21,7 @@ struct  thread_info
     size_t num_threads;
     int spp;
     std::vector<Vector3f>* framebuffer;
+    Vector3f eye_pos;
 };
 
 void *thread_fn(void *arg){
@@ -32,11 +33,12 @@ void *thread_fn(void *arg){
     size_t num_threads = _info->num_threads;
     const Scene* scene = _info->scene;
     std::vector<Vector3f>* framebuffer = _info->framebuffer;
-    int m = 0;
+   
     Vector3f eye_pos(278, 273, -800);
     unsigned stride = scene->height / num_threads;
     unsigned start = thread_num * stride;
-    m += start*scene->width;
+    int m = start*scene->width;
+    
     for (uint32_t j = start; j < start + stride; ++j) {
         for (uint32_t i = 0; i < scene->width; ++i) {
             // generate primary ray direction
@@ -57,20 +59,17 @@ void *thread_fn(void *arg){
 // The main render function. This where we iterate over all pixels in the image,
 // generate primary rays and cast these rays into the scene. The content of the
 // framebuffer is saved to a file.
-void Renderer::Render(const Scene& scene)
+void Renderer::Render(const Scene& scene, int spp)
 {
     std::vector<Vector3f> framebuffer(scene.width * scene.height);
-
     float scale = tan(deg2rad(scene.fov * 0.5));
     float imageAspectRatio = scene.width / (float)scene.height;
     Vector3f eye_pos(278, 273, -800);
-    int m = 0;
 
     // change the spp value to change sample ammount
-    int spp = 16;
     std::cout << "SPP: " << spp << "\n";
     
-    size_t num_threads = 16;
+    size_t num_threads = 32;
     thread_info tinfo[num_threads];
 
     for (int tnum=0; tnum<num_threads; tnum++){
@@ -81,12 +80,14 @@ void Renderer::Render(const Scene& scene)
         tinfo[tnum].spp = spp;
         tinfo[tnum].num_threads = num_threads;
         tinfo[tnum].framebuffer = &framebuffer;
+        tinfo[tnum].eye_pos = eye_pos;
         pthread_create(&tinfo[tnum].thread_id, NULL, &thread_fn, &tinfo[tnum]);
     }
     
     for (int tnum=0; tnum<num_threads; tnum++){
         pthread_join(tinfo[tnum].thread_id, NULL);
     }
+
     UpdateProgress(1.f);
 
     // save framebuffer to file
